@@ -41,15 +41,52 @@ const int ELEMENT = 4; //fire starting element relay
 const int WATER_TEMP = 3; //analogue pin 3
 const int AUGER_TEMP = 4; //analogue pin 4
 const int LIGHT = 2; //analogue pin 2 for flame detection
+const int DZ_PIN = 5; // pin that is pulled up when 1-wire relay closes
+const int DZ_SUPPLY = 6; //Need a pin to supply 5v that is passed to DZ_PIN when 1-wire relay closes
 
 
- 
- void setup() {
-  // put your setup code here, to run once:
 
+void setup() {
+  //intitialise output pins (inputs are all analogue read pins)
+  pinMode(PUMP, OUTPUT);
+  digitalWrite(PUMP, LOW); //pull down with a 10k or is there internal pulldown?
+  pinMode(FAN, OUTPUT);
+  digitalWrite(FAN, LOW); //pull down with a 10k or is there internal pulldown?
+  pinMode(AUGER, OUTPUT);
+  digitalWrite(AUGER, LOW); //pull down with a 10k or is there internal pulldown?
+  pinMode(ELEMENT, OUTPUT);
+  digitalWrite(ELEMENT, LOW); //pull down with a 10k or is there internal pulldown?
+  pinMode(DZ_SUPPLY, OUTPUT);
+  digitalWrite(DZ_SUPPLY, HIGH); //pull up?
+  //Initialise inputs
+  pinMode(DZ_PIN, INPUT);
+  digitalWrite(DZ_PIN, LOW); //pull down with a 10k or is there internal pulldown?
+  // don't think analogue pins need to be initialised pinMode(WATER_TEMP, INPUT);
+  
+  // initialize serial communication:
+  Serial.begin(115200);
 }
 
-void loop() {
-  // put your main code here, to run repeatedly:
 
+
+
+void loop() {
+  manage_outputs();
+  switch (state) {
+    case STATE_IDLE:
+      proc_idle();
+      break;
+    case STATE_START_UP:
+      proc_start_up();
+      break;
+    case STATE_HEATING:
+      proc_heating();
+      break;
+    case STATE_COOL_DOWN:
+      proc_cool_down();
+      break;
+    case STATE_ERROR:
+      proc_error();
+      break;
+  }
 }
