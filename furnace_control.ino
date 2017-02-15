@@ -60,7 +60,7 @@ const int LIGHT = 2; //analogue pin 2 for flame detection
 const int DZ_PIN = 5; // pin that is pulled up when 1-wire relay closes
 const int DZ_SUPPLY = 6; //Need a pin to supply 5v that is passed to DZ_PIN when 1-wire relay closes
 
-
+m
 
 void setup() {
   //intitialise output pins (inputs are all analogue read pins)
@@ -73,10 +73,10 @@ void setup() {
   pinMode(ELEMENT, OUTPUT);
   digitalWrite(ELEMENT, LOW); //pull down with a 10k or is there internal pulldown?
   pinMode(DZ_SUPPLY, OUTPUT);
-  digitalWrite(DZ_SUPPLY, HIGH); //pull up?
+  digitalWrite(DZ_SUPPLY, LOW); //pull up?
   //Initialise inputs
-  pinMode(DZ_PIN, INPUT);
-  digitalWrite(DZ_PIN, LOW); //pull down with a 10k or is there internal pulldown?
+  pinMode(DZ_PIN, INPUT_PULLUP);
+  digitalWrite(DZ_PIN, HIGH); 
   // don't think analogue pins need to be initialised pinMode(WATER_TEMP, INPUT);
   
   // initialize serial communication:
@@ -85,7 +85,7 @@ void setup() {
 
 void proc_idle() {
   //1-wire relay gets closed by DZ3
-  if (digitalRead(DZ_PIN) == HIGH) {
+  if (digitalRead(DZ_PIN) == LOW) {
     //see if already burning
     flame_val = analogRead(LIGHT);
     if (flame_val > FLAME_VAL_THRESHOLD) {
@@ -114,7 +114,7 @@ void proc_start_up() {
     reason = "Auger too hot";
   }
   //kill if dz aborts
-  if (digitalRead(DZ_PIN) == LOW) {
+  if (digitalRead(DZ_PIN) == HIGH) {
     state = STATE_COOL_DOWN;
   }
   flame_val = analogRead(LIGHT);
@@ -164,7 +164,7 @@ void proc_start_up() {
 
 void proc_heating() {
   //test to see if dz aborts
-  if (digitalRead(DZ_PIN) == LOW) {
+  if (digitalRead(DZ_PIN) == HIGH) {
     state = STATE_COOL_DOWN;
   }
   //dump pellets into flame box with timed auger runs
@@ -235,11 +235,11 @@ void proc_cool_down() {
     //start pump
     digitalWrite(PUMP, HIGH);
   }else {
-    if (digitalRead(DZ_PIN) == HIGH) {
+    if (digitalRead(DZ_PIN) == LOW) {
       //get back to heating
       state = STATE_HEATING;
     }
-    if (digitalRead(DZ_PIN) == LOW) {
+    if (digitalRead(DZ_PIN) == HIGH) {
       //Keep pumping heat into house until boiler cool
       if (water_temp < LOW_TEMP){
         digitalWrite(PUMP, LOW);
