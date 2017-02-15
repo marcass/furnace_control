@@ -268,7 +268,21 @@ void proc_error() {
 }
 
 void manage_outputs() {
-  
+  //this shoudl be redundant but i'm paranoid
+  water_temp = analogRead(WATER_TEMP);
+  if (water_temp > WATER_OVER_TEMP) {
+    state = STATE_COOL_DOWN;
+  }
+  //if auger too hot go into error
+  auger_temp = analogRead(AUGER_TEMP);
+  if (auger_temp > AUGER_OVER_TEMP) {
+    state = STATE_ERROR;
+    reason = "Auger too hot";
+    #ifdef debug
+      Serial.print("Auger temp is: ");
+      Serial.println(auger_temp);
+    #endif
+  }
 }
 
 
