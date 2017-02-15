@@ -13,9 +13,12 @@ const int ELEMENT_TIME = 120000; //2min in ms
 const int START_FEED_TIME = 30000; //30s in ms for pellet feed initially
 const int LOW_TEMP = 50; //deg C -> low end of heating range
 const int HIGH_TEMP = 85; //deg C -> high end of heating range
-const int OVER_TEMP = 90; //deg C = Oh shit lets shut down
+const int MID_TEMP = 65; //Send back to heating if over heats form here
+const int WATER_OVER_TEMP = 90; //deg C = Oh shit lets shut down
+const int AUGER_OVER_TEMP = 55; //deg C - don't want a hopper fire
 const int START_FAN_TIME = 20000; //20s in ms for time to blow to see if flame present
 const int FLAME_VAL_THRESHOLD;//work out a value here that is reasonable
+const int PUMP_TIME = 30000; //30s in ms
 //States
 const int STATE_IDLE = 0;
 const int STATE_START_UP = 1;
@@ -36,6 +39,13 @@ int flame_val;
 int state = 0;
 int start_count = 0;
 char reason;
+//I expect that code will alter these values in future
+int feed_time = 5000; //5s in ms
+int feed_pause = 20000; //20s in ms
+unsigned long start_feed_time = 0;
+unsigned long start_feed_pause = 0;
+unsigned long start_pump_time = 0;
+
 
 //Outputs
 const int PUMP = 2; //circ pump relay
@@ -75,7 +85,7 @@ void setup() {
 
 void proc_idle() {
   //1-wire relay gets closed by DZ3
-  if (DZ_PIN == HIGH) {
+  if (digitalRead(DZ_PIN) == HIGH) {
     //see if already burning
     flame_val = analogRead(LIGHT);
     if (flame_val > FLAME_VAL_THRESHOLD) {
@@ -98,10 +108,19 @@ void proc_idle() {
 }
 
 void proc_start_up() {
+  //safety first
+  if (analogRead(AUGER_TEMP) > AUGER_OVER_TEMP) {
+    state = STATE_ERROR;
+    reason = "Auger too hot";
+  }
+  //kill if dz aborts
+  if (digitalRead(DZ_PIN) == LOW) {
+    state = STATE_COOL_DOWN;
+  }
   flame_val = analogRead(LIGHT);
   if (start_count > 2) {
     state = STATE_ERROR;
-    reason = "failed to start"
+    reason = "failed to start";
   }
   //dump pellets to light with element
   if (auger_start == 0) {
@@ -137,22 +156,115 @@ void proc_start_up() {
         //go back to start and dump another load
         auger_start = 0;
         //increment start count
-        start_count ++;
+        start_count = start_count++;
       }
     }
   }     
 }
 
 void proc_heating() {
-  //fan_start = 0;
+  //test to see if dz aborts
+  if (digitalRead(DZ_PIN) == LOW) {
+    state = STATE_COOL_DOWN;
+  }
+  //dump pellets into flame box with timed auger runs
+  //run the fan. Ideally pwm control based on PID info of temp change but simple for now
+  flame_val = analogRead(LIGHT);
+  //If not enough flame start again
+  if (flame_val < FLAME_VAL_THRESHOLD) {
+    state = STATE_START_UP;
+  }
+  //if auger too hot go into error
+  auger_temp = analogRead(AUGER_TEMP);
+  if (auger_temp > AUGER_OVER_TEMP) {
+    state = STATE_ERROR;
+    reason = "Auger too hot";
+    #ifdef debug
+      Serial.print("Auger temp is: ");
+      Serial.println(auger_temp);
+    #endif
+  }
+  digitalWrite(FAN, HIGH);
+  if (start_feed_time == 0) {
+    digitalWrite(AUGER, HIGH);
+    start_feed_time = millis();
+  }
+  //test to see if feed been on for long enough
+  if (millis() - start_feed_time > feed_time) {
+    //stop feeding and start pausing
+    digitalWrite(AUGER, LOW);
+    if (start_feed_pause == 0) {
+      start_feed_pause = millis();
+    }
+    if (millis() - start_feed_pause > feed_pause) {
+      //stop pausing, start feeding
+      start_feed_time = 0;
+      start_feed_pause = 0;
+    }
+  }
+  //pump water when it is in the bands
+  water_temp = analogRead(WATER_TEMP);
+  if (water_temp > LOW_TEMP) {
+    //start pump
+    digitalWrite(PUMP, HIGH);
+    //avoid short cycling so pump for at least 30s
+    start_pump_time = millis();
+    //kill fan if too hot
+    if (water_temp > HIGH_TEMP) {
+      state = STATE_COOL_DOWN;
+    }
+  }
+  if (water_temp < LOW_TEMP) {
+    //check to see we aren't short cycling pump
+    if (millis() - start_pump_time > PUMP_TIME) {
+      digitalWrite(PUMP, LOW);
+      start_pump_time = 0;
+    }
+  }
 }
 
+
 void proc_cool_down() {
-  
+  //kill heating thigns
+  digitalWrite(FAN, LOW);
+  digitalWrite(AUGER, LOW);
+  digitalWrite(ELEMENT, LOW);
+  //test if boiler too hot, if it is pump some water to cool it
+  water_temp = analogRead(WATER_TEMP);
+  if (water_temp > MID_TEMP) {
+    //start pump
+    digitalWrite(PUMP, HIGH);
+  }else {
+    if (digitalRead(DZ_PIN) == HIGH) {
+      //get back to heating
+      state = STATE_HEATING;
+    }
+    if (digitalRead(DZ_PIN) == LOW) {
+      //Keep pumping heat into house until boiler cool
+      if (water_temp < LOW_TEMP){
+        digitalWrite(PUMP, LOW);
+        state = STATE_IDLE;
+      }
+    }
+  }
 }
 
 void proc_error() {
-  
+  #ifdef debug
+    Serial.println(reason);
+  #endif
+  //kill heating thigns
+  digitalWrite(FAN, LOW);
+  digitalWrite(AUGER, LOW);
+  digitalWrite(ELEMENT, LOW);
+  //test if boiler too hot, if it is pump some water to cool it
+  water_temp = analogRead(WATER_TEMP);
+  if (water_temp > LOW_TEMP) {
+    //start pump
+    digitalWrite(PUMP, HIGH);
+  }else {
+    digitalWrite(PUMP, LOW);
+  }
 }
 
 void manage_outputs() {
