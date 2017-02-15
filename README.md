@@ -51,3 +51,10 @@ Hardware fail-safes are ideal as software may have problems that result in uncon
  
  ### Error
  Catch all that pulls fan adn element low. Probably not needed
+
+##Links
+Triac schematic for fan control (need up to 5A as heat diminishes capability
+https://www.circuitar.com/media/product/25/files/Triac_v1.0.pdf
+
+Phase control for fan:
+http://playground.arduino.cc/Main/ACPhaseControl
