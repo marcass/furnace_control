@@ -66,7 +66,7 @@ Text GLabel 3400 2400 2    60   Input ~ 0
 element
 Text GLabel 1800 2100 0    60   Input ~ 0
 water_temp
-Text GLabel 1150 2200 0    60   Input ~ 0
+Text GLabel 1900 2400 0    60   Input ~ 0
 auger_temp
 Text GLabel 1150 2000 0    60   Input ~ 0
 light
@@ -222,7 +222,7 @@ Text GLabel 7600 1800 2    60   Input ~ 0
 dz_pin
 Text GLabel 7550 1700 2    60   Input ~ 0
 dz_supply
-Text GLabel 1300 4500 0    60   Input ~ 0
+Text GLabel 1800 5000 2    60   Input ~ 0
 fan_out
 Text GLabel 1250 4200 0    60   Input ~ 0
 ac_in
@@ -250,12 +250,6 @@ F 3 "" H 2975 4500 50  0000 L CNN
 $EndComp
 Wire Wire Line
 	2700 4400 2000 4400
-Wire Wire Line
-	1700 4400 1500 4400
-Wire Wire Line
-	1500 4400 1500 4500
-Wire Wire Line
-	1500 4500 1300 4500
 $Comp
 L GND #PWR06
 U 1 1 58A43A87
@@ -378,12 +372,12 @@ Connection ~ 4700 4100
 $Comp
 L GND #PWR08
 U 1 1 58A44ECB
-P 5650 4850
-F 0 "#PWR08" H 5650 4600 50  0001 C CNN
-F 1 "GND" H 5650 4700 50  0000 C CNN
-F 2 "" H 5650 4850 50  0000 C CNN
-F 3 "" H 5650 4850 50  0000 C CNN
-	1    5650 4850
+P 5200 4300
+F 0 "#PWR08" H 5200 4050 50  0001 C CNN
+F 1 "GND" H 5200 4150 50  0000 C CNN
+F 2 "" H 5200 4300 50  0000 C CNN
+F 3 "" H 5200 4300 50  0000 C CNN
+	1    5200 4300
 	1    0    0    -1  
 $EndComp
 Text Label 4850 4200 0    60   ~ 0
@@ -473,12 +467,10 @@ Wire Wire Line
 	9950 3100 9850 3100
 Wire Wire Line
 	9850 3100 9850 2750
-Text GLabel 1750 1900 0    60   Input ~ 0
+Text GLabel 1150 2200 0    60   Input ~ 0
 SDA
 Text GLabel 1800 2300 0    60   Input ~ 0
 SCL
-Wire Wire Line
-	1750 1900 1900 1900
 Wire Wire Line
 	1800 2300 1900 2300
 $Comp
@@ -591,14 +583,6 @@ $EndComp
 Wire Wire Line
 	4700 4650 5450 4650
 Wire Wire Line
-	5450 4650 5450 4400
-Wire Wire Line
-	5450 4400 5700 4400
-Wire Wire Line
-	5700 4500 5650 4500
-Wire Wire Line
-	5650 4500 5650 4850
-Wire Wire Line
 	5450 4100 5450 4300
 Wire Wire Line
 	5450 4300 5700 4300
@@ -695,4 +679,44 @@ F 3 "" H 3300 5900 50  0000 C CNN
 	1    3300 5900
 	1    0    0    -1  
 $EndComp
+Wire Wire Line
+	3300 4400 4400 4400
+Wire Wire Line
+	4400 4400 4400 4300
+Wire Wire Line
+	4400 4300 4700 4300
+Connection ~ 4700 4300
+$Comp
+L CONN_01X03 P7
+U 1 1 58A558C9
+P 1600 4900
+F 0 "P7" H 1600 5100 50  0000 C CNN
+F 1 "Jumper" V 1700 4900 50  0000 C CNN
+F 2 "Pin_Headers:Pin_Header_Straight_1x03" H 1600 4900 50  0001 C CNN
+F 3 "" H 1600 4900 50  0000 C CNN
+	1    1600 4900
+	-1   0    0    1   
+$EndComp
+Wire Wire Line
+	1800 4900 1900 4900
+Wire Wire Line
+	1900 4900 1900 4600
+Wire Wire Line
+	1900 4600 1600 4600
+Wire Wire Line
+	1600 4600 1600 4400
+Wire Wire Line
+	1600 4400 1700 4400
+Wire Wire Line
+	5450 4650 5450 4500
+Wire Wire Line
+	5450 4500 5700 4500
+Wire Wire Line
+	5700 4400 5350 4400
+Wire Wire Line
+	5350 4400 5350 4250
+Wire Wire Line
+	5350 4250 5200 4250
+Wire Wire Line
+	5200 4250 5200 4300
 $EndSCHEMATC

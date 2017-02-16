@@ -58,6 +58,9 @@ https://www.circuitar.com/media/product/25/files/Triac_v1.0.pdf
 
 Phase control for fan:
 http://playground.arduino.cc/Main/ACPhaseControl
+ACPWM lib
+http://playground.arduino.cc/Code/ACPWM
+
 
 ##Connecton notes
 * redundant fan_out connection at relay block in case on-board pahse angle not working
