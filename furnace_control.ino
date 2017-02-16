@@ -25,6 +25,11 @@ const int STATE_START_UP = 1;
 const int STATE_HEATING = 2;
 const int STATE_COOL_DOWN = 3;
 const int STATE_ERROR = 4;
+//Buttons (numbers from left
+const int BUTTON_1 = 13;
+const int BUTTON_2 = 12;
+const int BUTTON_3 = 11;
+const int BUTTON_4 = 10;
 
 //Variables that change
 unsigned long element_start = 0;
@@ -77,8 +82,14 @@ void setup() {
   //Initialise inputs
   pinMode(DZ_PIN, INPUT_PULLUP);
   digitalWrite(DZ_PIN, HIGH); 
-  // don't think analogue pins need to be initialised pinMode(WATER_TEMP, INPUT);
-  
+  pinMode(BUTTON_1, INPUT_PULLUP);
+  digitalWrite(BUTTON_1, HIGH);
+  pinMode(BUTTON_2, INPUT_PULLUP);
+  digitalWrite(BUTTON_2, HIGH);
+  pinMode(BUTTON_3, INPUT_PULLUP);
+  digitalWrite(BUTTON_3, HIGH);
+  pinMode(BUTTON_4, INPUT_PULLUP);
+  digitalWrite(BUTTON_4, HIGH);
   // initialize serial communication:
   Serial.begin(115200);
 }

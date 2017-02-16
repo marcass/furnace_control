@@ -58,3 +58,12 @@ https://www.circuitar.com/media/product/25/files/Triac_v1.0.pdf
 
 Phase control for fan:
 http://playground.arduino.cc/Main/ACPhaseControl
+
+##Connecton notes
+* redundant fan_out connection at relay block in case on-board pahse angle not working
+* P6 (240v outs) have the hardware thermostat (AB03 90.05) connected in pins 3 and 4 (polarity doesn't matter
+  * when below 90C it is closed circuit
+  * when above 90C it is open circuit
+  * after opening it closes again at 75C
+  * this (when closed circuit) supplies 240N to pins 1, 2 and 3 (pump, auger and element)
+* 1-wire relay (hobby boards 8 channel) connects at pins 7 and 8 of P1 (low voltage input connector). When it is closed by control software the DZ_pin is pulled to ground
