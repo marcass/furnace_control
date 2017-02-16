@@ -66,7 +66,7 @@ Text GLabel 3400 2400 2    60   Input ~ 0
 element
 Text GLabel 1800 2100 0    60   Input ~ 0
 water_temp
-Text GLabel 1150 2200 0    60   Input ~ 0
+Text GLabel 1900 2400 0    60   Input ~ 0
 auger_temp
 Text GLabel 1150 2000 0    60   Input ~ 0
 light
@@ -467,12 +467,10 @@ Wire Wire Line
 	9950 3100 9850 3100
 Wire Wire Line
 	9850 3100 9850 2750
-Text GLabel 1750 1900 0    60   Input ~ 0
+Text GLabel 1150 2200 0    60   Input ~ 0
 SDA
 Text GLabel 1800 2300 0    60   Input ~ 0
 SCL
-Wire Wire Line
-	1750 1900 1900 1900
 Wire Wire Line
 	1800 2300 1900 2300
 $Comp

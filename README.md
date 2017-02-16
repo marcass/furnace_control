@@ -70,3 +70,5 @@ http://playground.arduino.cc/Code/ACPWM
   * after opening it closes again at 75C
   * this (when closed circuit) supplies 240N to pins 1, 2 and 3 (pump, auger and element)
 * 1-wire relay (hobby boards 8 channel) connects at pins 7 and 8 of P1 (low voltage input connector). When it is closed by control software the DZ_pin is pulled to ground
+* 15k Ohm resistors need to be rated for 5w on 240VAC side (consumes 3.8W of power)
+* 1.5k Resistor needs to be 50W on 240VAC side (consumes 38W of power)

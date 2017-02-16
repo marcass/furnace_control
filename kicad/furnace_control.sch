@@ -271,6 +271,7 @@ F 0 "R5" V 3880 4600 50  0000 C CNN
 F 1 "1.5k" V 3800 4600 50  0000 C CNN
 F 2 "Resistors_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal" V 3730 4600 50  0001 C CNN
 F 3 "" H 3800 4600 50  0000 C CNN
+F 4 "50W" V 3800 4600 60  0001 C CNN "power"
 	1    3800 4600
 	0    1    1    0   
 $EndComp
@@ -348,6 +349,7 @@ F 0 "R7" V 4480 3900 50  0000 C CNN
 F 1 "15K" V 4400 3900 50  0000 C CNN
 F 2 "Resistors_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal" V 4330 3900 50  0001 C CNN
 F 3 "" H 4400 3900 50  0000 C CNN
+F 4 "5W" V 4400 3900 60  0001 C CNN "Power"
 	1    4400 3900
 	0    1    1    0   
 $EndComp
@@ -359,6 +361,7 @@ F 0 "R6" V 4480 4100 50  0000 C CNN
 F 1 "15K" V 4400 4100 50  0000 C CNN
 F 2 "Resistors_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal" V 4330 4100 50  0001 C CNN
 F 3 "" H 4400 4100 50  0000 C CNN
+F 4 "5W" V 4400 4100 60  0001 C CNN "Power"
 	1    4400 4100
 	0    1    1    0   
 $EndComp
