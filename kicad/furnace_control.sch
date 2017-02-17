@@ -306,7 +306,7 @@ F 3 "" H 5800 4300 50  0000 C CNN
 	1    5800 4300
 	1    0    0    -1  
 $EndComp
-Text Label 5850 4100 0    60   ~ 0
+Text Label 5050 4050 0    60   ~ 0
 Live
 $Comp
 L +5V #PWR09
@@ -513,10 +513,10 @@ F 3 "" H 1600 4900 50  0000 C CNN
 	-1   0    0    1   
 $EndComp
 $Comp
-L R R8
+L R R10
 U 1 1 58A5FAFB
 P 7550 1700
-F 0 "R8" V 7630 1700 50  0000 C CNN
+F 0 "R10" V 7630 1700 50  0000 C CNN
 F 1 "220" V 7550 1700 50  0000 C CNN
 F 2 "Resistors_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal" V 7480 1700 50  0001 C CNN
 F 3 "" H 7550 1700 50  0000 C CNN
@@ -535,10 +535,10 @@ F 3 "" H 5550 4350 50  0000 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L R R8
+L R R9
 U 1 1 58A606EF
 P 5300 4300
-F 0 "R8" V 5380 4300 50  0000 C CNN
+F 0 "R9" V 5380 4300 50  0000 C CNN
 F 1 "33" V 5300 4300 50  0000 C CNN
 F 2 "Resistors_THT:R_Axial_DIN0617_L17.0mm_D6.0mm_P25.40mm_Horizontal" V 5230 4300 50  0001 C CNN
 F 3 "" H 5300 4300 50  0000 C CNN
@@ -629,8 +629,6 @@ Wire Wire Line
 	4000 4100 4250 4100
 Wire Wire Line
 	4700 4350 4700 4100
-Wire Wire Line
-	4550 4100 6050 4100
 Connection ~ 4700 4100
 Wire Wire Line
 	7050 1200 7550 1200
@@ -785,4 +783,19 @@ Text Notes 4550 5150 0    60   ~ 0
 Circuit for noisy envronments (fan) uses \nmetal oxide varistor  with r adn cap in series
 Wire Wire Line
 	1250 4200 2950 4200
+$Comp
+L Fuse F1
+U 1 1 58A683F4
+P 5850 4100
+F 0 "F1" V 5930 4100 50  0000 C CNN
+F 1 "Fuse" V 5775 4100 50  0000 C CNN
+F 2 "Fuse_Holders_and_Fuses:Fuseholder5x20_Horizontal_closed_Bulgin_FX0457" V 5780 4100 50  0001 C CNN
+F 3 "" H 5850 4100 50  0000 C CNN
+	1    5850 4100
+	0    1    1    0   
+$EndComp
+Wire Wire Line
+	6050 4100 6000 4100
+Wire Wire Line
+	4550 4100 5700 4100
 $EndSCHEMATC
