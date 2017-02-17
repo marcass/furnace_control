@@ -244,7 +244,7 @@ U 1 1 58A43E71
 P 8800 1300
 F 0 "P4" H 8800 1650 50  0000 C CNN
 F 1 "CONN_01X06" V 8900 1300 50  0000 C CNN
-F 2 "Connectors_Phoenix:PhoenixContact_MC-G_06x3.81mm_Angled" H 8800 1300 50  0001 C CNN
+F 2 "Connectors_Phoenix:PhoenixContact_MC-GF_06x3.50mm_Angled_ThreadedFlange" H 8800 1300 50  0001 C CNN
 F 3 "" H 8800 1300 50  0000 C CNN
 	1    8800 1300
 	1    0    0    -1  
@@ -402,7 +402,7 @@ U 1 1 58A4BFF2
 P 10150 3450
 F 0 "P3" H 10150 3900 50  0000 C CNN
 F 1 "LCD_Button" V 10250 3450 50  0000 C CNN
-F 2 "Connectors_Phoenix:PhoenixContact_MC-G_08x3.81mm_Angled" H 10150 3450 50  0001 C CNN
+F 2 "Connectors_Phoenix:PhoenixContact_MC-GF_08x3.50mm_Angled_ThreadedFlange" H 10150 3450 50  0001 C CNN
 F 3 "" H 10150 3450 50  0000 C CNN
 	1    10150 3450
 	1    0    0    -1  
@@ -461,7 +461,7 @@ U 1 1 58A4F40C
 P 7750 1050
 F 0 "P1" H 7750 1500 50  0000 C CNN
 F 1 "CONN_01X08" V 7850 1050 50  0000 C CNN
-F 2 "Connectors_Phoenix:PhoenixContact_MC-G_08x3.81mm_Angled" H 7750 1050 50  0001 C CNN
+F 2 "Connectors_Phoenix:PhoenixContact_MC-GF_08x3.50mm_Angled_ThreadedFlange" H 7750 1050 50  0001 C CNN
 F 3 "" H 7750 1050 50  0000 C CNN
 	1    7750 1050
 	1    0    0    -1  
@@ -615,8 +615,6 @@ Wire Wire Line
 	8550 1550 8550 2700
 Wire Wire Line
 	8500 1450 8600 1450
-Wire Wire Line
-	1250 4200 2950 4200
 Wire Wire Line
 	2950 4200 2950 4000
 Wire Wire Line
@@ -785,4 +783,19 @@ Wire Wire Line
 	5300 4450 5300 4600
 Text Notes 4550 5150 0    60   ~ 0
 Circuit for noisy envronments (fan) uses \nmetal oxide varistor  with r adn cap in series
+$Comp
+L R R9
+U 1 1 58A612AA
+P 2250 4200
+F 0 "R9" V 2330 4200 50  0000 C CNN
+F 1 "220" V 2250 4200 50  0000 C CNN
+F 2 "Resistors_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal" V 2180 4200 50  0001 C CNN
+F 3 "" H 2250 4200 50  0000 C CNN
+	1    2250 4200
+	0    1    1    0   
+$EndComp
+Wire Wire Line
+	2950 4200 2400 4200
+Wire Wire Line
+	1250 4200 2100 4200
 $EndSCHEMATC
