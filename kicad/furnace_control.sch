@@ -220,8 +220,8 @@ L R R5
 U 1 1 58A43ADC
 P 3800 4600
 F 0 "R5" V 3880 4600 50  0000 C CNN
-F 1 "15k" V 3800 4600 50  0000 C CNN
-F 2 "Resistors_THT:R_Radial_Power_L13.0mm_W9.0mm_P5.00mm" V 3730 4600 50  0001 C CNN
+F 1 "1.5k" V 3800 4600 50  0000 C CNN
+F 2 "Resistors_ThroughHole:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal" V 3730 4600 50  0001 C CNN
 F 3 "" H 3800 4600 50  0000 C CNN
 F 4 "50W" V 3800 4600 60  0001 C CNN "power"
 	1    3800 4600
@@ -783,19 +783,6 @@ Wire Wire Line
 	5300 4450 5300 4600
 Text Notes 4550 5150 0    60   ~ 0
 Circuit for noisy envronments (fan) uses \nmetal oxide varistor  with r adn cap in series
-$Comp
-L R R9
-U 1 1 58A612AA
-P 2250 4200
-F 0 "R9" V 2330 4200 50  0000 C CNN
-F 1 "220" V 2250 4200 50  0000 C CNN
-F 2 "Resistors_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal" V 2180 4200 50  0001 C CNN
-F 3 "" H 2250 4200 50  0000 C CNN
-	1    2250 4200
-	0    1    1    0   
-$EndComp
 Wire Wire Line
-	2950 4200 2400 4200
-Wire Wire Line
-	1250 4200 2100 4200
+	1250 4200 2950 4200
 $EndSCHEMATC

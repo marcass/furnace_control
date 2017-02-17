@@ -7,6 +7,7 @@
 //EEPROM for saving points const ints
 //PID library
 //Liquid crystal display?
+#include <math.h>
 
 //Constants
 const int ELEMENT_TIME = 120000; //2min in ms
@@ -60,12 +61,22 @@ const int ELEMENT = 4; //fire starting element relay
 
 //Inputs
 const int WATER_TEMP = 3; //analogue pin 3
-const int AUGER_TEMP = 4; //analogue pin 4
+const int AUGER_TEMP = 6; //analogue pin 6
 const int LIGHT = 2; //analogue pin 2 for flame detection
 const int DZ_PIN = 5; // pin that is pulled up when 1-wire relay closes
 const int DZ_SUPPLY = 6; //Need a pin to supply 5v that is passed to DZ_PIN when 1-wire relay closes
 
-m
+//Analogue reading maths
+double Thermistor(int RawADC) {
+ double Temp;
+ Temp = log(10000.0*((1024.0/RawADC-1)));
+ //         =log(10000.0/(1024.0/RawADC-1)) // for pull-up configuration
+ Temp = 1 / (0.001129148 + (0.000234125 + (0.0000000876741 * Temp * Temp ))* Temp );
+ Temp = Temp - 273.15;            // Convert Kelvin to Celcius
+ //Temp = (Temp * 9.0)/ 5.0 + 32.0; // Convert Celcius to Fahrenheit
+ return Temp;
+}
+
 
 void setup() {
   //intitialise output pins (inputs are all analogue read pins)
@@ -98,7 +109,7 @@ void proc_idle() {
   //1-wire relay gets closed by DZ3
   if (digitalRead(DZ_PIN) == LOW) {
     //see if already burning
-    flame_val = analogRead(LIGHT);
+    flame_val = int(Thermistor(analogRead(LIGHT)));
     if (flame_val > FLAME_VAL_THRESHOLD) {
       state = STATE_HEATING;
       digitalWrite(FAN, LOW);
@@ -120,7 +131,8 @@ void proc_idle() {
 
 void proc_start_up() {
   //safety first
-  if (analogRead(AUGER_TEMP) > AUGER_OVER_TEMP) {
+  auger_temp = int(Thermistor(analogRead(AUGER_TEMP)))
+  if (auger_temp > AUGER_OVER_TEMP) {
     state = STATE_ERROR;
     reason = "Auger too hot";
   }
@@ -128,7 +140,7 @@ void proc_start_up() {
   if (digitalRead(DZ_PIN) == HIGH) {
     state = STATE_COOL_DOWN;
   }
-  flame_val = analogRead(LIGHT);
+  flame_val = int(Thermistor(analogRead(LIGHT)));
   if (start_count > 2) {
     state = STATE_ERROR;
     reason = "failed to start";
@@ -173,6 +185,8 @@ void proc_start_up() {
   }     
 }
 
+
+
 void proc_heating() {
   //test to see if dz aborts
   if (digitalRead(DZ_PIN) == HIGH) {
@@ -180,13 +194,13 @@ void proc_heating() {
   }
   //dump pellets into flame box with timed auger runs
   //run the fan. Ideally pwm control based on PID info of temp change but simple for now
-  flame_val = analogRead(LIGHT);
+  flame_val = int(Thermistor(analogRead(LIGHT)));
   //If not enough flame start again
   if (flame_val < FLAME_VAL_THRESHOLD) {
     state = STATE_START_UP;
   }
   //if auger too hot go into error
-  auger_temp = analogRead(AUGER_TEMP);
+  auger_temp = int(Thermistor(analogRead(AUGER_TEMP)));
   if (auger_temp > AUGER_OVER_TEMP) {
     state = STATE_ERROR;
     reason = "Auger too hot";
@@ -214,7 +228,7 @@ void proc_heating() {
     }
   }
   //pump water when it is in the bands
-  water_temp = analogRead(WATER_TEMP);
+  water_temp = int(Thermistor(analogRead(WATER_TEMP)));
   if (water_temp > LOW_TEMP) {
     //start pump
     digitalWrite(PUMP, HIGH);
@@ -241,7 +255,7 @@ void proc_cool_down() {
   digitalWrite(AUGER, LOW);
   digitalWrite(ELEMENT, LOW);
   //test if boiler too hot, if it is pump some water to cool it
-  water_temp = analogRead(WATER_TEMP);
+  water_temp = int(Thermistor(analogRead(WATER_TEMP)));
   if (water_temp > MID_TEMP) {
     //start pump
     digitalWrite(PUMP, HIGH);
@@ -269,7 +283,7 @@ void proc_error() {
   digitalWrite(AUGER, LOW);
   digitalWrite(ELEMENT, LOW);
   //test if boiler too hot, if it is pump some water to cool it
-  water_temp = analogRead(WATER_TEMP);
+  water_temp = int(Thermistor(analogRead(WATER_TEMP)));
   if (water_temp > LOW_TEMP) {
     //start pump
     digitalWrite(PUMP, HIGH);
@@ -280,12 +294,12 @@ void proc_error() {
 
 void manage_outputs() {
   //this shoudl be redundant but i'm paranoid
-  water_temp = analogRead(WATER_TEMP);
+  water_temp = int(Thermistor(analogRead(WATER_TEMP)));
   if (water_temp > WATER_OVER_TEMP) {
     state = STATE_COOL_DOWN;
   }
   //if auger too hot go into error
-  auger_temp = analogRead(AUGER_TEMP);
+  auger_temp = int(Thermistor(analogRead(AUGER_TEMP)));
   if (auger_temp > AUGER_OVER_TEMP) {
     state = STATE_ERROR;
     reason = "Auger too hot";

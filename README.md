@@ -25,6 +25,7 @@ Hardware fail-safes are ideal as software may have problems that result in uncon
 3. Heating
 4. Cool_down
 5. Error
+6. Off
  
  ### Idle
  Wait for closed contact from 1-wire bus to transition into. When contact closed: Blow fan for 20s to see if flame detected:
@@ -52,15 +53,19 @@ Hardware fail-safes are ideal as software may have problems that result in uncon
  ### Error
  Catch all that pulls fan adn element low. Probably not needed
 
+
+### Off
+Don't start the boiler even if dz asks (button press and remote)
+
 ##Links
-Triac schematic for fan control (need up to 5A as heat diminishes capability
+* Triac schematic for fan control (need up to 5A as heat diminishes capability
 https://www.circuitar.com/media/product/25/files/Triac_v1.0.pdf
 
-Phase control for fan:
+* Phase control for fan:
 http://playground.arduino.cc/Main/ACPhaseControl
-ACPWM lib
+* ACPWM lib
 http://playground.arduino.cc/Code/ACPWM
-
+* Phase control explanation with varying of power output suggestions: http://electronics.stackexchange.com/questions/19273/when-should-i-fire-the-triacs-gate-when-controlling-an-inductive-load-ac-motor
 
 ##Connecton notes
 * redundant fan_out connection at relay block in case on-board pahse angle not working
@@ -71,4 +76,9 @@ http://playground.arduino.cc/Code/ACPWM
   * this (when closed circuit) supplies 240N to pins 1, 2 and 3 (pump, auger and element)
 * 1-wire relay (hobby boards 8 channel) connects at pins 7 and 8 of P1 (low voltage input connector). When it is closed by control software the DZ_pin is pulled to ground
 * 15k Ohm resistors need to be rated for 5w on 240VAC side (consumes 3.8W of power)
-* 1.5k Resistor needs to be 50W on 240VAC side (consumes 38W of power)
+* 1.5k Resistor needs to be 50W on 240VAC side (consumes 38W of power) if constant power, but as MOC305 datasheet states:
+
+"The power dissapation of this current limiting resistor and the triac driver is very small because the power triac carris the load current as soon as the current through the driver and current limiting resistor reaches the trigger current of teh power triac" 
+
+Switching times for the driver are 1 micro second and 4 micro seconds for the power triac
+
