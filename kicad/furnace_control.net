@@ -1,7 +1,7 @@
 (export (version D)
   (design
     (source /home/mw/git/furnace_control/kicad/furnace_control.sch)
-    (date "Fri 17 Feb 2017 17:47:56 NZDT")
+    (date "Sat 18 Feb 2017 17:50:21 NZDT")
     (tool "Eeschema 4.0.5+dfsg1-4")
     (sheet (number 1) (name /) (tstamps /)
       (title_block
@@ -79,7 +79,7 @@
       (tstamp 58A44698))
     (comp (ref R7)
       (value 15K)
-      (footprint Resistors_THT:R_Radial_Power_L13.0mm_W9.0mm_P5.00mm)
+      (footprint 5W_resistor:Resistor_5W_l12.5_w9_P7.5)
       (fields
         (field (name Power) 5W))
       (libsource (lib device) (part R))
@@ -87,7 +87,7 @@
       (tstamp 58A44A15))
     (comp (ref R6)
       (value 15K)
-      (footprint Resistors_THT:R_Radial_Power_L13.0mm_W9.0mm_P5.00mm)
+      (footprint 5W_resistor:Resistor_5W_l12.5_w9_P7.5)
       (fields
         (field (name Power) 5W))
       (libsource (lib device) (part R))
@@ -361,10 +361,10 @@
       (uri /usr/share/kicad/library/conn.lib))
     (library (logical opto)
       (uri /usr/share/kicad/library/opto.lib))
-    (library (logical H11AA1)
-      (uri /home/mw/git/furnace_control/kicad/lib/H11AA1.lib))
     (library (logical arduino)
-      (uri /home/mw/git/furnace_control/kicad/lib/arduino.lib)))
+      (uri /home/mw/git/furnace_control/kicad/lib/arduino.lib))
+    (library (logical H11AA1)
+      (uri /home/mw/git/furnace_control/kicad/lib/H11AA1.lib)))
   (nets
     (net (code 1) (name Out_auger)
       (node (ref P4) (pin 2))
