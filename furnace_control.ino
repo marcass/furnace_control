@@ -9,23 +9,28 @@
 //Liquid crystal display?
 #include <math.h>
 
-//Constants
+//Constants we set
 const int ELEMENT_TIME = 120000; //2min in ms
 const int START_FEED_TIME = 30000; //30s in ms for pellet feed initially
-const int LOW_TEMP = 50; //deg C -> low end of heating range
-const int HIGH_TEMP = 85; //deg C -> high end of heating range
+const int LOW_TEMP = 45; //deg C -> low end of heating range
+const int HIGH_TEMP = 75; //deg C -> high end of heating range
 const int MID_TEMP = 65; //Send back to heating if over heats form here
-const int WATER_OVER_TEMP = 90; //deg C = Oh shit lets shut down
+const int TOO_HOT_TEMP = 85; //cool down NOW
 const int AUGER_OVER_TEMP = 55; //deg C - don't want a hopper fire
 const int START_FAN_TIME = 20000; //20s in ms for time to blow to see if flame present
-const int FLAME_VAL_THRESHOLD;//work out a value here that is reasonable
+const int FLAME_VAL_THRESHOLD = 300;//work out a value here that is reasonable
+const int NO_FLAME = 100; 
+const int START_FLAME = 200;
 const int PUMP_TIME = 30000; //30s in ms
+const int BUTTON_ON_THRESHOLD = 1500;//1.5s in ms for turning from off to idle and vice versa
+
 //States
 const int STATE_IDLE = 0;
 const int STATE_START_UP = 1;
 const int STATE_HEATING = 2;
 const int STATE_COOL_DOWN = 3;
 const int STATE_ERROR = 4;
+const int STATE_OFF = 5;
 //Buttons (numbers from left
 const int BUTTON_1 = 13;
 const int BUTTON_2 = 12;
@@ -41,16 +46,18 @@ unsigned long auger_start = 0;
 unsigned long auger_time;
 int water_temp;
 int auger_temp;
-int flame_val;
+int flame_val; // range from 0 to 1024 ( i think)
 int state = 0;
 int start_count = 0;
-char reason;
+String reason;
 //I expect that code will alter these values in future
 int feed_time = 5000; //5s in ms
 int feed_pause = 20000; //20s in ms
 unsigned long start_feed_time = 0;
 unsigned long start_feed_pause = 0;
 unsigned long start_pump_time = 0;
+unsigned long debounce_start = 0;
+int power; //variable for percentage power we want fan to run at
 
 
 //Outputs
@@ -92,17 +99,25 @@ void setup() {
   digitalWrite(DZ_SUPPLY, LOW); //pull up?
   //Initialise inputs
   pinMode(DZ_PIN, INPUT_PULLUP);
-  digitalWrite(DZ_PIN, HIGH); 
+  //digitalWrite(DZ_PIN, HIGH); 
   pinMode(BUTTON_1, INPUT_PULLUP);
-  digitalWrite(BUTTON_1, HIGH);
+  //digitalWrite(BUTTON_1, HIGH);
   pinMode(BUTTON_2, INPUT_PULLUP);
-  digitalWrite(BUTTON_2, HIGH);
+  //digitalWrite(BUTTON_2, HIGH);
   pinMode(BUTTON_3, INPUT_PULLUP);
-  digitalWrite(BUTTON_3, HIGH);
+  //digitalWrite(BUTTON_3, HIGH);
   pinMode(BUTTON_4, INPUT_PULLUP);
-  digitalWrite(BUTTON_4, HIGH);
+  //digitalWrite(BUTTON_4, HIGH);
   // initialize serial communication:
   Serial.begin(115200);
+}
+
+void run_fan(int power) {
+  //do magic phase angle stuff here
+}
+
+void stop_fan() {
+  //undo phase angle magic here
 }
 
 void proc_idle() {
@@ -112,17 +127,17 @@ void proc_idle() {
     flame_val = int(Thermistor(analogRead(LIGHT)));
     if (flame_val > FLAME_VAL_THRESHOLD) {
       state = STATE_HEATING;
-      digitalWrite(FAN, LOW);
+      //stop_fan();
       fan_start = 0;
     }else { //if not already burning see if we can fan some flames
       if (fan_start == 0) {
         fan_start = millis();
-        digitalWrite(FAN, HIGH); //watch for future PWM effects here
+        run_fan(25);
       }
     }
     //if still no light in fanning flames time kill fan and go to start up
     if (millis() - fan_start > START_FAN_TIME) {
-      digitalWrite(FAN, LOW);
+      stop_fan();
       fan_start = 0;
       state = STATE_START_UP;
     }
@@ -140,7 +155,9 @@ void proc_start_up() {
   if (digitalRead(DZ_PIN) == HIGH) {
     state = STATE_COOL_DOWN;
   }
+  //read light in firebox
   flame_val = int(Thermistor(analogRead(LIGHT)));
+  //kill if failed to start too many times
   if (start_count > 2) {
     state = STATE_ERROR;
     reason = "failed to start";
@@ -158,13 +175,18 @@ void proc_start_up() {
       digitalWrite(ELEMENT, HIGH);
       element_start = millis();
     }
-    //test to see if element been on for long enough
+    if ((flame_val > START_FLAME) && (flame_val < FLAME_VAL_THRESHOLD)) { //little bit of light but needs help
+      //gentle fanning to get going
+      run_fan(20); //run fan at 20%
+    }
+    //test to see if element been on for too enough and stop it if it has
     if (millis() - element_start > ELEMENT_TIME) {
       //fan the flames until light is seen or wait threshhold is over
       digitalWrite(ELEMENT, LOW);
+      element_start = 0;
       if (fan_start == 0) {
         fan_start = millis();
-        digitalWrite(FAN, HIGH); //watch for future PWM effects here
+        run_fan(20); //run fan at 20%
       }
       if (flame_val > FLAME_VAL_THRESHOLD) {
         //we have flame, so:
@@ -174,7 +196,7 @@ void proc_start_up() {
       }
       //if still no light in fanning flames time kill fan and go back to start of start up
       if (millis() - fan_start > START_FAN_TIME) {
-        digitalWrite(FAN, LOW);
+        stop_fan();
         fan_start = 0;
         //go back to start and dump another load
         auger_start = 0;
@@ -185,7 +207,42 @@ void proc_start_up() {
   }     
 }
 
+void fan_and_pellet_management() {
+  //water temp measured in proc_heating()
+  /****************************************************
+   * FAN MANAGEMENT
+   ************************************************/
+  if (water_temp < LOW_TEMP) { //go hard on the fan
+    run_fan(100);
+  }else {
+    //set fan power variable via PID lib here
+    //fancy maths give power = ?;
+    run_fan(power);
+  }
 
+  
+  run_fan(power);
+  if (start_feed_time == 0) {
+    digitalWrite(AUGER, HIGH);
+    start_feed_time = millis();
+  }
+  /**************************************************
+   * PELLETS MANAGMENT
+   **************************************************/
+  //test to see if feed been on for long enough
+  if (millis() - start_feed_time > feed_time) {
+    //stop feeding and start pausing
+    digitalWrite(AUGER, LOW);
+    if (start_feed_pause == 0) {
+      start_feed_pause = millis();
+    }
+    if (millis() - start_feed_pause > feed_pause) {
+      //stop pausing, start feeding
+      start_feed_time = 0;
+      start_feed_pause = 0;
+    }
+  }
+}
 
 void proc_heating() {
   //test to see if dz aborts
@@ -209,24 +266,7 @@ void proc_heating() {
       Serial.println(auger_temp);
     #endif
   }
-  digitalWrite(FAN, HIGH);
-  if (start_feed_time == 0) {
-    digitalWrite(AUGER, HIGH);
-    start_feed_time = millis();
-  }
-  //test to see if feed been on for long enough
-  if (millis() - start_feed_time > feed_time) {
-    //stop feeding and start pausing
-    digitalWrite(AUGER, LOW);
-    if (start_feed_pause == 0) {
-      start_feed_pause = millis();
-    }
-    if (millis() - start_feed_pause > feed_pause) {
-      //stop pausing, start feeding
-      start_feed_time = 0;
-      start_feed_pause = 0;
-    }
-  }
+  fan_and_pellet_management();
   //pump water when it is in the bands
   water_temp = int(Thermistor(analogRead(WATER_TEMP)));
   if (water_temp > LOW_TEMP) {
@@ -235,7 +275,7 @@ void proc_heating() {
     //avoid short cycling so pump for at least 30s
     start_pump_time = millis();
     //kill fan if too hot
-    if (water_temp > HIGH_TEMP) {
+    if (water_temp > TOO_HOT_TEMP) {
       state = STATE_COOL_DOWN;
     }
   }
@@ -250,21 +290,35 @@ void proc_heating() {
 
 
 void proc_cool_down() {
-  //kill heating thigns
-  digitalWrite(FAN, LOW);
-  digitalWrite(AUGER, LOW);
-  digitalWrite(ELEMENT, LOW);
-  //test if boiler too hot, if it is pump some water to cool it
   water_temp = int(Thermistor(analogRead(WATER_TEMP)));
-  if (water_temp > MID_TEMP) {
+  flame_val = int(Thermistor(analogRead(LIGHT)));
+  //kill heating thigns if too hot and keep checking to see what state needed
+  if (water_temp > TOO_HOT_TEMP) {
+    stop_fan();
+    digitalWrite(AUGER, LOW);
+    digitalWrite(ELEMENT, LOW);
+    //pump some water to cool it
+    digitalWrite(PUMP, HIGH);
+  }
+  
+  //not too hot but now but could be cooler
+  if ((water_temp < HIGH_TEMP) && (water_temp > MID_TEMP)) {
     //start pump
     digitalWrite(PUMP, HIGH);
+    //blow fan until fire is out to empty firebox of pellet load
+    fan_start(100);
   }else {
     if (digitalRead(DZ_PIN) == LOW) {
       //get back to heating
       state = STATE_HEATING;
     }
     if (digitalRead(DZ_PIN) == HIGH) {
+      //no heat needed so empty fire box
+      //blow fan until fire is out to empty firebox of pellet load
+      fan_start(100);
+      if (flame_val < NO_FLAME) {
+        stop_fan();
+      }
       //Keep pumping heat into house until boiler cool
       if (water_temp < LOW_TEMP){
         digitalWrite(PUMP, LOW);
@@ -292,10 +346,26 @@ void proc_error() {
   }
 }
 
+void proc_off{} {
+  //Wait for on either via button or serial comms
+  //otherwise do nothing
+//  if (digitalRead(BUTTON_1) == HIGH) {
+//    if (debounce_start == 0) {
+//      debounce_start = millis();
+//    }
+//    if (millis() - debounce_start > BUTTON_ON_THRESHOLD) {
+//      state = STATE_IDLE;
+//      debounce_start = 0;
+//    }else if (digitalRead(BUTTON_1) == LOW) { //button not held long enough so don't turn on and reset counter
+//      debounce_start = 0;
+//    }
+//  }
+}
+
 void manage_outputs() {
   //this shoudl be redundant but i'm paranoid
   water_temp = int(Thermistor(analogRead(WATER_TEMP)));
-  if (water_temp > WATER_OVER_TEMP) {
+  if (water_temp > TOO_HOT_TEMP) {
     state = STATE_COOL_DOWN;
   }
   //if auger too hot go into error
@@ -313,6 +383,23 @@ void manage_outputs() {
 
 void loop() {
   manage_outputs();
+  //see if we need to turn on or off
+  //Wait for on either via button or serial comms
+  if (digitalRead(BUTTON_1) == HIGH) {
+    if (debounce_start == 0) {
+      debounce_start = millis();
+    }
+    if (millis() - debounce_start > BUTTON_ON_THRESHOLD) {
+      if (state != STATE_OFF) {
+        state = STATE_IDLE;
+      }else {
+        state = STATE_OFF;
+      }
+      debounce_start = 0;
+    }else if (digitalRead(BUTTON_1) == LOW) { //button not held long enough so don't turn switch state and reset counter
+      debounce_start = 0;
+    }
+  }
   switch (state) {
     case STATE_IDLE:
       proc_idle();
@@ -329,5 +416,9 @@ void loop() {
     case STATE_ERROR:
       proc_error();
       break;
+     case STATE_OFF:
+      proc_off();
+      break;
+      
   }
 }
