@@ -1,13 +1,23 @@
+
+
 /*******************************
  BOILER CONTROL
  *******************************/
 #define debug
+#define PID //use if PID controlling fan output
+#define no_PID //use if not pid controlling
 
 //Libraries
-//EEPROM for saving points const ints
+#include <Wire.h>
+//https://bitbucket.org/fmalpartida/new-liquidcrystal/wiki/Home
+#include <LiquidCrystal_I2C.h>
+//EEPROM for saving set points?
 //PID library
-//Liquid crystal display?
 #include <math.h>
+#include <PID_v1.h>
+
+LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I2C address
+//need to set contrast and backlight and check pin assignments
 
 //Constants we set
 const int ELEMENT_TIME = 120000; //2min in ms
@@ -112,7 +122,7 @@ void setup() {
   Serial.begin(115200);
 }
 
-void run_fan(int power) {
+void run_fan(int) { 
   //do magic phase angle stuff here
 }
 
@@ -157,6 +167,9 @@ void proc_start_up() {
   }
   //read light in firebox
   flame_val = int(Thermistor(analogRead(LIGHT)));
+  //if plenty of light go to 
+
+  
   //kill if failed to start too many times
   if (start_count > 2) {
     state = STATE_ERROR;
@@ -214,21 +227,27 @@ void fan_and_pellet_management() {
    ************************************************/
   if (water_temp < LOW_TEMP) { //go hard on the fan
     run_fan(100);
-  }else {
-    //set fan power variable via PID lib here
-    //fancy maths give power = ?;
+  }else if (water_temp > TOO_HOT_TEMP) {
+    state = STATE_COOL_DOWN
+  }else
+    #ifdef PID
+      //set fan power variable via PID lib here
+      //fancy maths give power = ?;
+      
+    #endif
+    #ifdef no_PID
+      power = 80; //arbitrary value
+    #endif
     run_fan(power);
   }
 
-  
-  run_fan(power);
+  /**************************************************
+   * PELLETS MANAGMENT
+   **************************************************/
   if (start_feed_time == 0) {
     digitalWrite(AUGER, HIGH);
     start_feed_time = millis();
   }
-  /**************************************************
-   * PELLETS MANAGMENT
-   **************************************************/
   //test to see if feed been on for long enough
   if (millis() - start_feed_time > feed_time) {
     //stop feeding and start pausing
