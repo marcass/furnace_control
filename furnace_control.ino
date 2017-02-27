@@ -11,15 +11,17 @@
 #include <Wire.h>
 //https://bitbucket.org/fmalpartida/new-liquidcrystal/wiki/Home
 #include <LiquidCrystal_I2C.h>
-//EEPROM for saving set points?
 //PID library
 #include <math.h>
 #include <PID_v1.h>
+//for ac phase angle stuff
+#include <avr/io.h>
+#include <avr/interrupt.h>
 
 LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I2C address
 //need to set contrast and backlight and check pin assignments
 
-//Constants we set
+//Constants
 const int ELEMENT_TIME = 120000; //2min in ms
 const int START_FEED_TIME = 30000; //30s in ms for pellet feed initially
 const int LOW_TEMP = 45; //deg C -> low end of heating range
@@ -68,6 +70,8 @@ unsigned long start_feed_pause = 0;
 unsigned long start_pump_time = 0;
 unsigned long debounce_start = 0;
 int power; //variable for percentage power we want fan to run at
+int on_wait; //variable for converting power to timer value
+bool fan_running;
 
 
 //Outputs
@@ -82,6 +86,9 @@ const int AUGER_TEMP = 6; //analogue pin 6
 const int LIGHT = 2; //analogue pin 2 for flame detection
 const int DZ_PIN = 5; // pin that is pulled up when 1-wire relay closes
 const int DZ_SUPPLY = 6; //Need a pin to supply 5v that is passed to DZ_PIN when 1-wire relay closes
+const int DETECT = 2; //ac detection pin
+const int GATE = 9; //pwm pin
+const int PULSE 4;   //trigger pulse width (counts) that triac requires to fire one specified needs ~25mus
 
 //Analogue reading maths
 double Thermistor(int RawADC) {
@@ -97,6 +104,9 @@ double Thermistor(int RawADC) {
 
 void setup() {
   //intitialise output pins (inputs are all analogue read pins)
+  pinMode(DETECT, INPUT);     //zero cross detect
+  digitalWrite(DETECT, HIGH); //enable pull-up resistor
+  pinMode(GATE, OUTPUT);      //TRIAC gate control
   pinMode(PUMP, OUTPUT);
   digitalWrite(PUMP, LOW); //pull down with a 10k or is there internal pulldown?
   pinMode(FAN, OUTPUT);
@@ -120,14 +130,81 @@ void setup() {
   //digitalWrite(BUTTON_4, HIGH);
   // initialize serial communication:
   Serial.begin(115200);
+
+  //set up timer1 for ac detection
+  //(see ATMEGA 328 data sheet pg 134 for more details)
+  OCR1A = 100;      //initialize the comparator
+  //TIMSK1 = 0x03;    //enable comparator A and overflow interrupts - done in fan_running
+  TCCR1A = 0x00;    //timer control registers set for
+  TCCR1B = 0x00;    //normal operation, timer disabled
+  // set up zero crossing interrupt
+  attachInterrupt(0,zeroCrossingInterrupt, RISING);    
+    //IRQ0 is pin 2. Call zeroCrossingInterrupt 
+    //on rising signal  
 }
 
-void run_fan(int) { 
-  //do magic phase angle stuff here
+//Interrupt Service Routines
+
+void zeroCrossingInterrupt(){ //zero cross detect   
+  TCCR1B=0x04; //start timer with divide by 256 input
+  TCNT1 = 0;   //reset timer - count from zero
+}
+
+ISR(TIMER1_COMPA_vect){ //comparator match
+  digitalWrite(GATE,HIGH);  //set TRIAC gate to high
+  TCNT1 = 65536-PULSE;      //trigger pulse width
+}
+
+ISR(TIMER1_OVF_vect){ //timer1 overflow
+  digitalWrite(GATE,LOW); //turn off TRIAC gate
+  TCCR1B = 0x00;          //disable timer stopd unintended triggers
+}
+
+void run_fan(int x) {
+  //set flag for fan on
+  fan_running = true;
+  if (fan_running) {
+    if (x == 100) {
+      digitalWrite(GATE,HIGH);
+    }else {
+      //do magic phase angle stuff here
+      /* x is the int as a percentage of fan power
+       * OCR1A is the comparator for the phase angle cut-off
+       * - when TCNT1 > OCR1A, ISR(TIMER1_OVF_vect) is called tellng optocoupler to power down
+       * - 520 counts (16000000 cycles scaled to 256) per half AC sine wave
+       * - a figure of 480 is a large proportion of 520 adn avoids latching the triac over the next zero cross
+       * - 65 is the lower limit to avoid firing the triac too close to teh zero cross
+       * - The smaller the value of OCR1A the more power we have
+       */
+      TIMSK1 = 0x03;    //enable comparator A and overflow interrupts
+      //set up interrupt
+      attachInterrupt(0,zeroCrossingInterrupt, RISING);  // inturrupt 0 on digital pin 2
+      //set a value that is a proportion of 520 for power
+      on_wait = (520 - (x / 100 * 520));
+      //a value of 65 gives close to full power (overflow counter triggered early in wave turing triac on
+      //a value of 480 gives close to fuck all power (don't want to be too close to zero cross 
+      // when turning optocoupler off or latch will spill over to next half wave leaving it on
+      if ( on_wait < 65) {
+        OCR1A = 65;
+      }
+      if ( on_wait > 480) {
+        OCR1A = 480;
+      }else {
+        OCR1A = on_wait;
+      }
+    }
+  }
 }
 
 void stop_fan() {
   //undo phase angle magic here
+  detachInterrupt(0);
+  fan_running = false;
+  digitalWrite(GATE,LOW);
+  TCCR1B = 0x00;
+  TIMSK1 = 0x00;    //disable comparator A and overflow interrupts
+  TCCR1A = 0x00;    //timer control registers set for
+  TCCR1B = 0x00;    //normal operation, timer disabled
 }
 
 void proc_idle() {
