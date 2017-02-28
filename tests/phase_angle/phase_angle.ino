@@ -26,6 +26,8 @@
 // 16 microseconds.  1/2 wave of a 60Hz AC signal
 // is about 520 counts (8,333 microseconds).
 
+//#define test
+#define fan
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -35,12 +37,14 @@
 #define DETECT 2  //zero cross detect
 #define GATE 9    //TRIAC gate
 #define PULSE 4   //trigger pulse width (counts)
-int power;
+int power= 9;
 int on_wait;
 char rx_byte = 0;
 String inString = "";    // string to hold input
 int proportion;
 float divisor;
+int crosses;
+int counts;
 
 void setup(){
 
@@ -48,6 +52,7 @@ void setup(){
   pinMode(DETECT, INPUT);     //zero cross detect
   digitalWrite(DETECT, HIGH); //enable pull-up resistor
   pinMode(GATE, OUTPUT);      //TRIAC gate control
+  digitalWrite(GATE, LOW);
 
   // set up Timer1 
   //(see ATMEGA 328 data sheet pg 134 for more details)
@@ -69,17 +74,21 @@ void setup(){
 void zeroCrossingInterrupt(){ //zero cross detect   
   TCCR1B=0x04; //start timer with divide by 256 input
   TCNT1 = 0;   //reset timer - count from zero
+  //crosses++;
 }
 
-ISR(TIMER1_COMPA_vect){ //comparator match
-  digitalWrite(GATE,HIGH);  //set TRIAC gate to high
-  TCNT1 = 65536-PULSE;      //trigger pulse width
-}
 
-ISR(TIMER1_OVF_vect){ //timer1 overflow
-  digitalWrite(GATE,LOW); //turn off TRIAC gate
-  TCCR1B = 0x00;          //disable timer stopd unintended triggers
-}
+#ifdef fan
+  ISR(TIMER1_COMPA_vect){ //comparator match
+    digitalWrite(GATE,HIGH);  //set TRIAC gate to high
+    TCNT1 = 65536-PULSE;      //trigger pulse width
+  }
+  
+  ISR(TIMER1_OVF_vect){ //timer1 overflow
+    digitalWrite(GATE,LOW); //turn off TRIAC gate
+    TCCR1B = 0x00;          //disable timer stopd unintended triggers
+  }
+#endif
 
 void run_fan(int x) { 
 
@@ -142,31 +151,41 @@ void loop(){ // sample code to exercise the circuit
 //      Serial.println("Not a number.");
 //    }
 //  } // end: if (Serial.available() > 0)  
-
-  // Read serial input:
-  while (Serial.available() > 0) {
-    int inChar = Serial.read();
-    if (isDigit(inChar)) {
-      // convert the incoming byte to a char
-      // and add it to the string:
-      inString += (char)inChar;
+  #ifdef fan
+    // Read serial input:
+    while (Serial.available() > 0) {
+      int inChar = Serial.read();
+      if (isDigit(inChar)) {
+        // convert the incoming byte to a char
+        // and add it to the string:
+        inString += (char)inChar;
+      }
+      // if you get a newline, print the string,
+      // then the string's value:
+      if (inChar == '\n') {
+        Serial.print("Value:");
+        Serial.println(inString.toInt());
+        Serial.print("String: ");
+        Serial.println(inString);
+        //set power variable
+        power = inString.toInt();
+        // clear the string for new input:
+        inString = "";
+      }
     }
-    // if you get a newline, print the string,
-    // then the string's value:
-    if (inChar == '\n') {
-      Serial.print("Value:");
-      Serial.println(inString.toInt());
-      Serial.print("String: ");
-      Serial.println(inString);
-      //set power variable
-      power = inString.toInt();
-      // clear the string for new input:
-      inString = "";
+    Serial.print("Power = ");
+    Serial.println(power); 
+    
+    run_fan(power); 
+  #endif
+  #ifdef test
+    if (crosses > 60) {
+      crosses = 0;
+      counts++;
+      Serial.print("Number of counts = ");
+      Serial.println(counts);
     }
-  }
-  Serial.print("Power = ");
-  Serial.print(power); 
-  run_fan(power); 
+  #endif
   //delay(1000);  
 
 }
