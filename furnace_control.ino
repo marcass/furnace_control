@@ -211,7 +211,7 @@ void proc_idle() {
   //1-wire relay gets closed by DZ3
   if (digitalRead(DZ_PIN) == LOW) {
     //see if already burning
-    flame_val = int(Thermistor(analogRead(LIGHT)));
+    flame_val = analogRead(LIGHT);
     if (flame_val > FLAME_VAL_THRESHOLD) {
       state = STATE_HEATING;
       //stop_fan();
@@ -243,7 +243,7 @@ void proc_start_up() {
     state = STATE_COOL_DOWN;
   }
   //read light in firebox
-  flame_val = int(Thermistor(analogRead(LIGHT)));
+  flame_val = analogRead(LIGHT);
   //if plenty of light go to 
 
   
@@ -347,7 +347,7 @@ void proc_heating() {
   }
   //dump pellets into flame box with timed auger runs
   //run the fan. Ideally pwm control based on PID info of temp change but simple for now
-  flame_val = int(Thermistor(analogRead(LIGHT)));
+  flame_val = analogRead(LIGHT);
   //If not enough flame start again
   if (flame_val < FLAME_VAL_THRESHOLD) {
     state = STATE_START_UP;
@@ -387,7 +387,7 @@ void proc_heating() {
 
 void proc_cool_down() {
   water_temp = int(Thermistor(analogRead(WATER_TEMP)));
-  flame_val = int(Thermistor(analogRead(LIGHT)));
+  flame_val = analogRead(LIGHT);
   //kill heating thigns if too hot and keep checking to see what state needed
   if (water_temp > TOO_HOT_TEMP) {
     stop_fan();

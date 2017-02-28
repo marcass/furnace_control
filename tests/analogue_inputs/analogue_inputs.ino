@@ -28,7 +28,7 @@ void setup() {
 
 void loop() {
   auger_temp = int(Thermistor(analogRead(AUGER_TEMP)));
-  flame_val = int(Thermistor(analogRead(LIGHT)));
+  flame_val = analogRead(LIGHT);
   water_temp = int(Thermistor(analogRead(WATER_TEMP)));
   Serial.print("Auger = ");
   Serial.print(auger_temp);

@@ -29,14 +29,18 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <math.h>
+
 
 #define DETECT 2  //zero cross detect
 #define GATE 9    //TRIAC gate
 #define PULSE 4   //trigger pulse width (counts)
-int i=483;
 int power;
 int on_wait;
 char rx_byte = 0;
+String inString = "";    // string to hold input
+int proportion;
+float divisor;
 
 void setup(){
 
@@ -78,7 +82,7 @@ ISR(TIMER1_OVF_vect){ //timer1 overflow
 }
 
 void run_fan(int x) { 
-  
+
   if (x == 10) { //no phase angle control needed if you want balls out fan speed
     digitalWrite(GATE,HIGH);
   }else {
@@ -95,7 +99,12 @@ void run_fan(int x) {
     //set up interrupt
     attachInterrupt(0,zeroCrossingInterrupt, RISING);  // inturrupt 0 on digital pin 2
     //set a value that is a proportion of 520 for power
-    on_wait = (520 - (x / 10 * 520));
+    divisor = (float)x / 10;
+    proportion = divisor * 520;
+    on_wait = 520 - proportion;
+    //on_wait = (520 - (x / 10 * 520));
+//    Serial.print("on_wait = ");
+//    Serial.println(on_wait);
     //a value of 65 gives close to full power (overflow counter triggered early in wave turing triac on
     //a value of 480 gives close to fuck all power (don't want to be too close to zero cross 
     // when turning optocoupler off or latch will spill over to next half wave leaving it on
@@ -107,7 +116,7 @@ void run_fan(int x) {
     }else {
       OCR1A = on_wait;
     }
-    Serial.print("Number of counts until fire = ");
+    Serial.print("   Number of counts until fire = ");
     Serial.println(OCR1A);
   }
   
@@ -119,19 +128,45 @@ void loop(){ // sample code to exercise the circuit
 //OCR1A = i;     //set the compare register brightness desired.
 //if (i<65){i=483;}                      
 //delay(15);      
- if (Serial.available() > 0) {    // is a character available?
-    rx_byte = Serial.read();       // get the character
-  
-    // check if a number was received
-    if ((rx_byte >= '0') && (rx_byte <= '9')) {
-      Serial.print("Number received: ");
-      Serial.println(rx_byte);
-      power = rx_byte;
+// if (Serial.available() > 0) {    // is a character available?
+//    rx_byte = Serial.read();       // get the character
+//  
+//    // check if a number was received
+//    if ((rx_byte >= '0') && (rx_byte <= '9')) {
+//      power = rx_byte;
+//      Serial.print("Number received: ");
+//      Serial.println(rx_byte);
+//      
+//    }
+//    else {
+//      Serial.println("Not a number.");
+//    }
+//  } // end: if (Serial.available() > 0)  
+
+  // Read serial input:
+  while (Serial.available() > 0) {
+    int inChar = Serial.read();
+    if (isDigit(inChar)) {
+      // convert the incoming byte to a char
+      // and add it to the string:
+      inString += (char)inChar;
     }
-    else {
-      Serial.println("Not a number.");
+    // if you get a newline, print the string,
+    // then the string's value:
+    if (inChar == '\n') {
+      Serial.print("Value:");
+      Serial.println(inString.toInt());
+      Serial.print("String: ");
+      Serial.println(inString);
+      //set power variable
+      power = inString.toInt();
+      // clear the string for new input:
+      inString = "";
     }
-  } // end: if (Serial.available() > 0)   
-  run_fan(power);                     
+  }
+  Serial.print("Power = ");
+  Serial.print(power); 
+  run_fan(power); 
+  //delay(1000);  
 
 }
