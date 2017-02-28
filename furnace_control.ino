@@ -362,9 +362,9 @@ void proc_heating() {
       Serial.println(auger_temp);
     #endif
   }
+  water_temp = int(Thermistor(analogRead(WATER_TEMP)));
   fan_and_pellet_management();
   //pump water when it is in the bands
-  water_temp = int(Thermistor(analogRead(WATER_TEMP)));
   if (water_temp > LOW_TEMP) {
     //start pump
     digitalWrite(PUMP, HIGH);
