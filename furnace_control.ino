@@ -90,7 +90,7 @@ const int DETECT = 2; //ac detection pin
 const int GATE = 9; //pwm pin
 const int PULSE = 4;   //trigger pulse width (counts) that triac requires to fire one specified needs ~25mus
 
-//Analogue reading maths
+//Analogue reading maths for temp
 double Thermistor(int RawADC) {
  double Temp;
  Temp = log(10000.0*((1024.0/RawADC-1)));
@@ -105,29 +105,24 @@ double Thermistor(int RawADC) {
 void setup() {
   //intitialise output pins (inputs are all analogue read pins)
   pinMode(DETECT, INPUT);     //zero cross detect
-  digitalWrite(DETECT, HIGH); //enable pull-up resistor
+  digitalWrite(DETECT, HIGH);
   pinMode(GATE, OUTPUT);      //TRIAC gate control
   pinMode(PUMP, OUTPUT);
-  digitalWrite(PUMP, LOW); //pull down with a 10k or is there internal pulldown?
+  digitalWrite(PUMP, LOW);
   pinMode(FAN, OUTPUT);
-  digitalWrite(FAN, LOW); //pull down with a 10k or is there internal pulldown?
+  digitalWrite(FAN, LOW);
   pinMode(AUGER, OUTPUT);
-  digitalWrite(AUGER, LOW); //pull down with a 10k or is there internal pulldown?
+  digitalWrite(AUGER, LOW);
   pinMode(ELEMENT, OUTPUT);
-  digitalWrite(ELEMENT, LOW); //pull down with a 10k or is there internal pulldown?
+  digitalWrite(ELEMENT, LOW);
   pinMode(DZ_SUPPLY, OUTPUT);
-  digitalWrite(DZ_SUPPLY, LOW); //pull up?
+  digitalWrite(DZ_SUPPLY, LOW);
   //Initialise inputs
   pinMode(DZ_PIN, INPUT_PULLUP);
-  //digitalWrite(DZ_PIN, HIGH); 
   pinMode(BUTTON_1, INPUT_PULLUP);
-  //digitalWrite(BUTTON_1, HIGH);
   pinMode(BUTTON_2, INPUT_PULLUP);
-  //digitalWrite(BUTTON_2, HIGH);
   pinMode(BUTTON_3, INPUT_PULLUP);
-  //digitalWrite(BUTTON_3, HIGH);
   pinMode(BUTTON_4, INPUT_PULLUP);
-  //digitalWrite(BUTTON_4, HIGH);
   // initialize serial communication:
   Serial.begin(115200);
 
@@ -138,7 +133,7 @@ void setup() {
   TCCR1A = 0x00;    //timer control registers set for
   TCCR1B = 0x00;    //normal operation, timer disabled
   // set up zero crossing interrupt
-  attachInterrupt(0,zeroCrossingInterrupt, RISING);    
+  //attachInterrupt(0,zeroCrossingInterrupt, RISING);    //Do this in run_fan()
     //IRQ0 is pin 2. Call zeroCrossingInterrupt 
     //on rising signal  
 }
@@ -161,37 +156,30 @@ ISR(TIMER1_OVF_vect){ //timer1 overflow
 }
 
 void run_fan(int x) {
-  //set flag for fan on
-  fan_running = true;
-  if (fan_running) {
-    if (x == 100) { //no phase angle control needed if you want balls out fan speed
-      digitalWrite(GATE,HIGH);
+  if (x == 100) { //no phase angle control needed if you want balls out fan speed
+    digitalWrite(GATE,HIGH);
+  }else {
+    //do magic phase angle stuff here
+    /* x is the int as a percentage of fan power
+     * OCR1A is the comparator for the phase angle cut-off
+     * - when TCNT1 > OCR1A, ISR(TIMER1_OVF_vect) is called tellng optocoupler to power down
+     * - 520 counts (16000000 cycles scaled to 256) per half AC sine wave @60hz (i think we run at 50Hz)
+     * - fan stops over 80% of power, presumably latching the triac confusion over next zero cross => less than 156 count delay
+     * - 30% is the lower power limit to avoid firing the triac too close to teh zero cross => delay not more than 364 count delay
+     * - The smaller the value of OCR1A the more power we have
+     */
+    TIMSK1 = 0x03;    //enable comparator A and overflow interrupts
+    //set up interrupt
+    attachInterrupt(0,zeroCrossingInterrupt, RISING);  // inturrupt 0 on digital pin 2
+    //set a value that is a proportion of 520 for power
+    on_wait = (520 - ((float)x / 100 * 520));
+    if ( on_wait < 104) {
+      OCR1A = 104;
+    }
+    if ( on_wait > 364) {
+      OCR1A = 364;
     }else {
-      //do magic phase angle stuff here
-      /* x is the int as a percentage of fan power
-       * OCR1A is the comparator for the phase angle cut-off
-       * - when TCNT1 > OCR1A, ISR(TIMER1_OVF_vect) is called tellng optocoupler to power down
-       * - 520 counts (16000000 cycles scaled to 256) per half AC sine wave
-       * - a figure of 480 is a large proportion of 520 adn avoids latching the triac over the next zero cross
-       * - 65 is the lower limit to avoid firing the triac too close to teh zero cross
-       * - The smaller the value of OCR1A the more power we have
-       */
-      TIMSK1 = 0x03;    //enable comparator A and overflow interrupts
-      //set up interrupt
-      attachInterrupt(0,zeroCrossingInterrupt, RISING);  // inturrupt 0 on digital pin 2
-      //set a value that is a proportion of 520 for power
-      on_wait = (520 - ((float)x / 100 * 520));
-      //a value of 65 gives close to full power (overflow counter triggered early in wave turing triac on
-      //a value of 480 gives close to fuck all power (don't want to be too close to zero cross 
-      // when turning optocoupler off or latch will spill over to next half wave leaving it on
-      if ( on_wait < 156) {
-        OCR1A = 156;
-      }
-      if ( on_wait > 416) {
-        OCR1A = 416;
-      }else {
-        OCR1A = on_wait;
-      }
+      OCR1A = on_wait;
     }
   }
 }
@@ -443,6 +431,16 @@ void proc_error() {
 }
 
 void proc_off() {
+  //settle arduino down:
+  stop_fan();
+  //if too hot pump unitl not:
+  water_temp = int(Thermistor(analogRead(WATER_TEMP)));
+  if (water_temp > HIGH_TEMP) {
+    //start pump
+    digitalWrite(PUMP, HIGH);
+  }else {
+    digitalWrite(PUMP, LOW);
+  }
   //Wait for on either via button or serial comms
   //otherwise do nothing
 //  if (digitalRead(BUTTON_1) == HIGH) {
@@ -515,6 +513,9 @@ void loop() {
      case STATE_OFF:
       proc_off();
       break;
-      
-  }
+    }
+  #ifdef debug
+    Serial.print("State = ");
+    Serial.print(state);
+  #endif 
 }
