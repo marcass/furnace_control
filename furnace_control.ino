@@ -69,7 +69,7 @@ unsigned long start_feed_time = 0;
 unsigned long start_feed_pause = 0;
 unsigned long start_pump_time = 0;
 unsigned long debounce_start = 0;
-int power; //variable for percentage power we want fan to run at
+int power; //variable for percentage power we want fan to run at works from 30 (min) to 80 (max)
 int on_wait; //variable for converting power to timer value
 bool fan_running;
 
@@ -180,15 +180,15 @@ void run_fan(int x) {
       //set up interrupt
       attachInterrupt(0,zeroCrossingInterrupt, RISING);  // inturrupt 0 on digital pin 2
       //set a value that is a proportion of 520 for power
-      on_wait = (520 - (x / 100 * 520));
+      on_wait = (520 - ((float)x / 100 * 520));
       //a value of 65 gives close to full power (overflow counter triggered early in wave turing triac on
       //a value of 480 gives close to fuck all power (don't want to be too close to zero cross 
       // when turning optocoupler off or latch will spill over to next half wave leaving it on
-      if ( on_wait < 65) {
-        OCR1A = 65;
+      if ( on_wait < 156) {
+        OCR1A = 156;
       }
-      if ( on_wait > 480) {
-        OCR1A = 480;
+      if ( on_wait > 416) {
+        OCR1A = 416;
       }else {
         OCR1A = on_wait;
       }
