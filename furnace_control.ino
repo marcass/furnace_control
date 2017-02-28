@@ -88,7 +88,7 @@ const int DZ_PIN = 5; // pin that is pulled up when 1-wire relay closes
 const int DZ_SUPPLY = 6; //Need a pin to supply 5v that is passed to DZ_PIN when 1-wire relay closes
 const int DETECT = 2; //ac detection pin
 const int GATE = 9; //pwm pin
-const int PULSE 4;   //trigger pulse width (counts) that triac requires to fire one specified needs ~25mus
+const int PULSE = 4;   //trigger pulse width (counts) that triac requires to fire one specified needs ~25mus
 
 //Analogue reading maths
 double Thermistor(int RawADC) {
@@ -164,7 +164,7 @@ void run_fan(int x) {
   //set flag for fan on
   fan_running = true;
   if (fan_running) {
-    if (x == 100) {
+    if (x == 100) { //no phase angle control needed if you want balls out fan speed
       digitalWrite(GATE,HIGH);
     }else {
       //do magic phase angle stuff here
@@ -233,7 +233,7 @@ void proc_idle() {
 
 void proc_start_up() {
   //safety first
-  auger_temp = int(Thermistor(analogRead(AUGER_TEMP)))
+  auger_temp = int(Thermistor(analogRead(AUGER_TEMP)));
   if (auger_temp > AUGER_OVER_TEMP) {
     state = STATE_ERROR;
     reason = "Auger too hot";
@@ -305,8 +305,8 @@ void fan_and_pellet_management() {
   if (water_temp < LOW_TEMP) { //go hard on the fan
     run_fan(100);
   }else if (water_temp > TOO_HOT_TEMP) {
-    state = STATE_COOL_DOWN
-  }else
+    state = STATE_COOL_DOWN;
+  }else {
     #ifdef PID
       //set fan power variable via PID lib here
       //fancy maths give power = ?;
@@ -402,7 +402,7 @@ void proc_cool_down() {
     //start pump
     digitalWrite(PUMP, HIGH);
     //blow fan until fire is out to empty firebox of pellet load
-    fan_start(100);
+    run_fan(100);
   }else {
     if (digitalRead(DZ_PIN) == LOW) {
       //get back to heating
@@ -411,7 +411,7 @@ void proc_cool_down() {
     if (digitalRead(DZ_PIN) == HIGH) {
       //no heat needed so empty fire box
       //blow fan until fire is out to empty firebox of pellet load
-      fan_start(100);
+      run_fan(100);
       if (flame_val < NO_FLAME) {
         stop_fan();
       }
@@ -442,7 +442,7 @@ void proc_error() {
   }
 }
 
-void proc_off{} {
+void proc_off() {
   //Wait for on either via button or serial comms
   //otherwise do nothing
 //  if (digitalRead(BUTTON_1) == HIGH) {
