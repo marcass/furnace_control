@@ -31,7 +31,6 @@ const int TOO_HOT_TEMP = 85; //cool down NOW
 const int AUGER_OVER_TEMP = 55; //deg C - don't want a hopper fire
 const int START_FAN_TIME = 20000; //20s in ms for time to blow to see if flame present
 const int FLAME_VAL_THRESHOLD = 120;//work out a value here that is reasonable
-const int NO_FLAME = 100; 
 const int START_FLAME = 80;
 const int PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
 const int BUTTON_ON_THRESHOLD = 1500;//1.5s in ms for turning from off to idle and vice versa
@@ -52,26 +51,46 @@ const int BUTTON_4 = 10;
 //Variables that change
 unsigned long element_start = 0;
 unsigned long fan_start = 0;
+unsigned long fallback_fan_start = 0;
 unsigned long fan_time;
 unsigned long element_time;
 unsigned long auger_start = 0;
 unsigned long auger_time;
-int water_temp;
 int auger_temp;
 int flame_val; // range from 0 to 1024 ( i think)
 int state = 0;
 int start_count = 0;
-String reason;
+String reason = "";
 //I expect that code will alter these values in future
 int feed_time = 5000; //5s in ms
-int feed_pause = 20000; //20s in ms
 unsigned long start_feed_time = 0;
 unsigned long start_feed_pause = 0;
 unsigned long start_pump_time = 0;
 unsigned long debounce_start = 0;
-int power; //variable for percentage power we want fan to run at works from 30 (min) to 80 (max)
 int on_wait; //variable for converting power to timer value
-bool fan_running;
+bool small_flame = false;
+float feed_pause = 20000; //20s and calculating a result so might need to be a float
+
+#ifdef PID
+  //PID setup
+  //double Setpoint, Input, Output;
+  double TEMP_SET_POINT = 68; //PID SETPOINT
+  double power; //variable for percentage power we want fan to run at works from 30 (min) to 80 (max)
+  double water_temp;
+  double feed_pause_percent;
+  double FEED_SET_POINT = 20000; //20s in ms
+  
+  //Specify the links and initial tuning parameters
+  //PID fanPID(&Input, &Output, &Setpoint,2,5,1, DIRECT);
+  PID fanPID(&water_temp, &power, &TEMP_SET_POINT,2,5,1, DIRECT); //need more fan power to get hotter so DIRECT
+  PID pelletsPID(&water_temp, &feed_pause_percent, &FEED_SET_POINT,2,5,1, REVERSE); //need shorter feed time to get to hotter so REVERSE
+#endif
+
+#ifdef no_PID
+  int power; //variable for percentage power we want fan to run at works from 30 (min) to 80 (max)
+  int water_temp;
+  const int FEED_SET_POINT = 20000; //20s i
+#endif
 
 
 //Outputs
@@ -125,11 +144,21 @@ void setup() {
   pinMode(BUTTON_4, INPUT_PULLUP);
   // initialize serial communication:
   Serial.begin(115200);
+  #ifdef PID
+    //initialize the PID variables we're linked to
+    fanPID.SetOutputLimits(30, 80); //percentage of fan power
+    fanPID.SetSampleTime(3000); //SAMPLES EVERY 3s
+    pelletsPID.SetOutputLimits(35,100); //percentage of feed time
+    pelletsPID.SetSampleTime(3000);
+    //turn the PID on
+    fanPID.SetMode(AUTOMATIC);
+    pelletsPID.SetMode(AUTOMATIC);
+  #endif
 
   //set up timer1 for ac detection
   //(see ATMEGA 328 data sheet pg 134 for more details)
   OCR1A = 100;      //initialize the comparator
-  //TIMSK1 = 0x03;    //enable comparator A and overflow interrupts - done in fan_running
+  //TIMSK1 = 0x03;    //enable comparator A and overflow interrupts - done in run_fan()
   TCCR1A = 0x00;    //timer control registers set for
   TCCR1B = 0x00;    //normal operation, timer disabled
   // set up zero crossing interrupt
@@ -187,7 +216,6 @@ void run_fan(int x) {
 void stop_fan() {
   //undo phase angle magic here
   detachInterrupt(0);
-  fan_running = false;
   digitalWrite(GATE,LOW);
   TCCR1B = 0x00;
   TIMSK1 = 0x00;    //disable comparator A and overflow interrupts
@@ -198,24 +226,9 @@ void stop_fan() {
 void proc_idle() {
   //1-wire relay gets closed by DZ3
   if (digitalRead(DZ_PIN) == LOW) {
-    //see if already burning
-    flame_val = analogRead(LIGHT);
-    if (flame_val > FLAME_VAL_THRESHOLD) {
-      state = STATE_HEATING;
-      //stop_fan();
-      fan_start = 0;
-    }else { //if not already burning see if we can fan some flames
-      if (fan_start == 0) {
-        fan_start = millis();
-        run_fan(25);
-      }
-    }
-    //if still no light in fanning flames time kill fan and go to start up
-    if (millis() - fan_start > START_FAN_TIME) {
-      stop_fan();
-      fan_start = 0;
-      state = STATE_START_UP;
-    }
+    state = STATE_START_UP;
+  }else {
+    //twiddle thumbs
   }
 }
 
@@ -223,7 +236,7 @@ void going_yet() {
   /*startup sequence
    * 1. check to see if heaps of light -> heating
    * 2. check to see if a little bit of light -> fan and go to 1
-   * 3. if no light roused -> pellet dump and element start then go to 1
+   * 3. if no light -> pellet dump and element start then go to 1
    */
   //read light in firebox
   flame_val = analogRead(LIGHT);
@@ -232,39 +245,32 @@ void going_yet() {
     fan_start = 0;
     element_start = 0;
     auger_start = 0;
-  }else if (flame_val > START_FLAME) { //a little bit of light so lets gently blow
+    small_flame = false;
+    start_count = 0;
+  }else if (flame_val > START_FLAME) { //a little bit of light so lets gently blow and see if flame_val_threshold breached
     run_fan(30); //run fan at 30%
+    small_flame = true;
     if (fan_start == 0) {
       fan_start = millis();
     }else {
-      //go back to doing what you were
+      //nothing happening, go back to doing what you were
     }
   }
 }
 
 void proc_start_up() {
-  //safety first
-  auger_temp = int(Thermistor(analogRead(AUGER_TEMP)));
-  if (auger_temp > AUGER_OVER_TEMP) {
-    state = STATE_ERROR;
-    reason = "Auger too hot";
-  }
-  //kill if dz aborts
-  if (digitalRead(DZ_PIN) == HIGH) {
-    state = STATE_COOL_DOWN;
-  }
   //kill if failed to start too many times
   if (start_count > 2) {
     state = STATE_ERROR;
     reason = "failed to start";
   }
-  going_yet(); //perform check
-  if (fan_start > START_FAN_TIME) { //no flame made in initial blow
-    //if not, dump pellets to light with element
-    fan_start = 0; //reset fan timer
+  going_yet(); //perform check in each loop
+  if (millis() - fan_start > START_FAN_TIME) { // either unable to graduate from small flame to large or no flame
+    stop_fan();
+    digitalWrite(AUGER, HIGH); //dump pellets
     if (auger_start == 0) {
-      digitalWrite(AUGER, HIGH);
       auger_start = millis();
+      fan_start = 0; //reset fan timer so we can start fanning again
     }
     if (millis() - auger_start > START_FEED_TIME) {
       //stop feeding pellets
@@ -276,23 +282,20 @@ void proc_start_up() {
       //test to see if element been on for too enough and stop it if it has
       if (millis() - element_start > ELEMENT_TIME) {
         digitalWrite(ELEMENT, LOW);
-        going_yet(); //perform check. if no flame fan the puck anyway
-        run_fan(30);
-        if (fan_start == 0) {
-          fan_start = millis();
-        }
-        
-
-        //start from here
-        
-        //if still no light in fanning flames time kill fan and go back to start of start up
-        if (millis() - fan_start > START_FAN_TIME) {
-          stop_fan();
-          fan_start = 0;
-          //go back to start and dump another load
-          auger_start = 0;
-          //increment start count
-          start_count = start_count++;
+        if (!small_flame) { //no flame detected, fan puck to see if we can get one
+          run_fan(30);
+          if (fallback_fan_start == 0) {
+            fallback_fan_start = millis();
+          } //loop back to see if going for a bit
+          if (millis() - fallback_fan_start > START_FAN_TIME) { //no flame made - hopeless so start again
+            stop_fan();
+            fan_start = 0;
+            fallback_fan_start = 0;
+            //go back to start and dump another load
+            auger_start = 0;
+            //increment start count
+            start_count = start_count++;
+          }
         }
       }
     }     
@@ -304,18 +307,18 @@ void fan_and_pellet_management() {
   /****************************************************
    * FAN MANAGEMENT
    ************************************************/
+  #ifdef PID
+    //set fan power variable via PID lib here
+    //fancy maths give power = ?;
+    fanPID.Compute();
+  #endif
   if (water_temp < LOW_TEMP) { //go hard on the fan
     run_fan(100);
   }else if (water_temp > TOO_HOT_TEMP) {
     state = STATE_COOL_DOWN;
   }else {
-    #ifdef PID
-      //set fan power variable via PID lib here
-      //fancy maths give power = ?;
-      
-    #endif
     #ifdef no_PID
-      power = 80; //arbitrary value
+      power = 75; //arbitrary value
     #endif
     run_fan(power);
   }
@@ -323,6 +326,12 @@ void fan_and_pellet_management() {
   /**************************************************
    * PELLETS MANAGMENT
    **************************************************/
+  #ifdef PID
+    //set fan power variable via PID lib here
+    //fancy maths give power = ?;
+    pelletsPID.Compute();
+    feed_pause = (feed_pause_percent / 100) * 20000; //caluclate actual pause from PID derived value
+  #endif
   if (start_feed_time == 0) {
     digitalWrite(AUGER, HIGH);
     start_feed_time = millis();
@@ -351,20 +360,9 @@ void proc_heating() {
   //run the fan. Ideally pwm control based on PID info of temp change but simple for now
   flame_val = analogRead(LIGHT);
   //If not enough flame start again
-  if (flame_val < FLAME_VAL_THRESHOLD) {
+  if (flame_val < START_FLAME) {
     state = STATE_START_UP;
   }
-  //if auger too hot go into error
-  auger_temp = int(Thermistor(analogRead(AUGER_TEMP)));
-  if (auger_temp > AUGER_OVER_TEMP) {
-    state = STATE_ERROR;
-    reason = "Auger too hot";
-    #ifdef debug
-      Serial.print("Auger temp is: ");
-      Serial.println(auger_temp);
-    #endif
-  }
-  water_temp = int(Thermistor(analogRead(WATER_TEMP)));
   fan_and_pellet_management();
   //pump water when it is in the bands
   if (water_temp > LOW_TEMP) {
@@ -388,7 +386,6 @@ void proc_heating() {
 
 
 void proc_cool_down() {
-  water_temp = int(Thermistor(analogRead(WATER_TEMP)));
   flame_val = analogRead(LIGHT);
   //kill heating thigns if too hot and keep checking to see what state needed
   if (water_temp > TOO_HOT_TEMP) {
@@ -401,25 +398,24 @@ void proc_cool_down() {
   
   //not too hot but now but could be cooler
   if ((water_temp < HIGH_TEMP) && (water_temp > MID_TEMP)) {
-    //start pump
-    digitalWrite(PUMP, HIGH);
-    //blow fan until fire is out to empty firebox of pellet load
-    run_fan(100);
-  }else {
     if (digitalRead(DZ_PIN) == LOW) {
       //get back to heating
       state = STATE_HEATING;
     }
     if (digitalRead(DZ_PIN) == HIGH) {
       //no heat needed so empty fire box
+      //start pump to dump heat
+      digitalWrite(PUMP, HIGH);
       //blow fan until fire is out to empty firebox of pellet load
       run_fan(100);
-      if (flame_val < NO_FLAME) {
+      if (flame_val < START_FLAME) {
         stop_fan();
       }
       //Keep pumping heat into house until boiler cool
       if (water_temp < LOW_TEMP){
         digitalWrite(PUMP, LOW);
+      }
+      if ((flame_val < START_FLAME) && (water_temp < LOW_TEMP)) {
         state = STATE_IDLE;
       }
     }
@@ -436,7 +432,7 @@ void proc_error() {
   digitalWrite(ELEMENT, LOW);
   //test if boiler too hot, if it is pump some water to cool it
   water_temp = int(Thermistor(analogRead(WATER_TEMP)));
-  if (water_temp > LOW_TEMP) {
+  if (water_temp > MID_TEMP) {
     //start pump
     digitalWrite(PUMP, HIGH);
   }else {
@@ -455,23 +451,19 @@ void proc_off() {
   }else {
     digitalWrite(PUMP, LOW);
   }
-  //Wait for on either via button or serial comms
-  //otherwise do nothing
-//  if (digitalRead(BUTTON_1) == HIGH) {
-//    if (debounce_start == 0) {
-//      debounce_start = millis();
-//    }
-//    if (millis() - debounce_start > BUTTON_ON_THRESHOLD) {
-//      state = STATE_IDLE;
-//      debounce_start = 0;
-//    }else if (digitalRead(BUTTON_1) == LOW) { //button not held long enough so don't turn on and reset counter
-//      debounce_start = 0;
-//    }
-//  }
+  //reset everthing
+  start_count = 0;
+  feed_time = 5000; //5s in ms
+  feed_pause = 20000; //20s in ms
+  start_feed_time = 0;
+  start_feed_pause = 0;
+  start_pump_time = 0;
+  debounce_start = 0;
+  small_flame = false;
+  reason = "";
 }
 
-void manage_outputs() {
-  //this shoudl be redundant but i'm paranoid
+void safety() {
   water_temp = int(Thermistor(analogRead(WATER_TEMP)));
   if (water_temp > TOO_HOT_TEMP) {
     state = STATE_COOL_DOWN;
@@ -490,7 +482,7 @@ void manage_outputs() {
 
 
 void loop() {
-  manage_outputs();
+  safety();
   //see if we need to turn on or off
   //Wait for on either via button or serial comms
   if (digitalRead(BUTTON_1) == HIGH) {
