@@ -148,7 +148,7 @@ void setup() {
     //initialize the PID variables we're linked to
     fanPID.SetOutputLimits(30, 80); //percentage of fan power
     fanPID.SetSampleTime(3000); //SAMPLES EVERY 3s
-    pelletsPID.SetOutputLimits(35,100); //percentage of feed time
+    pelletsPID.SetOutputLimits(60,100); //percentage of feed time check to see that burning all of load
     pelletsPID.SetSampleTime(3000);
     //turn the PID on
     fanPID.SetMode(AUTOMATIC);
@@ -307,11 +307,6 @@ void fan_and_pellet_management() {
   /****************************************************
    * FAN MANAGEMENT
    ************************************************/
-  #ifdef PID
-    //set fan power variable via PID lib here
-    //fancy maths give power = ?;
-    fanPID.Compute();
-  #endif
   if (water_temp < LOW_TEMP) { //go hard on the fan
     run_fan(100);
   }else if (water_temp > TOO_HOT_TEMP) {
@@ -320,16 +315,14 @@ void fan_and_pellet_management() {
     #ifdef no_PID
       power = 75; //arbitrary value
     #endif
-    run_fan(power);
+    run_fan((int)power);
   }
 
   /**************************************************
    * PELLETS MANAGMENT
+   * pid managment of pause between feeding
    **************************************************/
   #ifdef PID
-    //set fan power variable via PID lib here
-    //fancy maths give power = ?;
-    pelletsPID.Compute();
     feed_pause = (feed_pause_percent / 100) * 20000; //caluclate actual pause from PID derived value
   #endif
   if (start_feed_time == 0) {
@@ -343,7 +336,7 @@ void fan_and_pellet_management() {
     if (start_feed_pause == 0) {
       start_feed_pause = millis();
     }
-    if (millis() - start_feed_pause > feed_pause) {
+    if (millis() - start_feed_pause > (int)feed_pause) {
       //stop pausing, start feeding
       start_feed_time = 0;
       start_feed_pause = 0;
@@ -352,6 +345,19 @@ void fan_and_pellet_management() {
 }
 
 void proc_heating() {
+  #ifdef PID
+    //set fan power and pellets pausse variable via PID lib here
+    fanPID.Compute();
+    pelletsPID.Compute();
+    #ifdef debug
+      Serial.print("Fan power = ")
+      Serial.print(power);
+      Serial.print("%");
+      Serial.print("Pellets pause = ")
+      Serial.print(feed_pause_percent);
+      Serial.println("%");
+    #endif
+  #endif
   //test to see if dz aborts
   if (digitalRead(DZ_PIN) == HIGH) {
     state = STATE_COOL_DOWN;
