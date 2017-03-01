@@ -6,8 +6,11 @@
 #define debug
 #define pid //use if PID controlling fan output
 //#define no_PID //use if not pid controlling
+#define mqtt
+
 
 //Libraries
+#include <SimpleTimer.h>
 #include <Wire.h>
 //https://bitbucket.org/fmalpartida/new-liquidcrystal/wiki/Home
 #include <LiquidCrystal_I2C.h>
@@ -36,6 +39,20 @@ const int PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
 const int BUTTON_ON_THRESHOLD = 1500;//1.5s in ms for turning from off to idle and vice versa
 const int FEED_PAUSE = 60000; //60s and calculating a result so might need to be a float
 
+#ifdef mqtt
+  const int STATE_PUB = "4";
+  const int WATER_TEMP_PUB = "1"
+  const int AUGER_TEMP_PUB = "2"
+  const int FLAME_PUB = "3"
+  const int ERROR_PUB = "5"
+  const int pub = 4;
+  String STATE_TOPIC = "boiler/state";
+  String WATER_TEMP_TOPIC = "boiler/temp/water"
+  String AUGER_TEMP_TOPIC = "boiler/temp/auger"
+  String FLAME_TOPIC = "boiler/flame"
+  String ERROR_TOPIC = "boiler/messages"
+#endif
+
 //States
 const int STATE_IDLE = 0;
 const int STATE_START_UP = 1;
@@ -59,7 +76,7 @@ unsigned long auger_start = 0;
 unsigned long auger_time;
 int auger_temp;
 int flame_val; // range from 0 to 1024 ( i think)
-int state = 0;
+int state;
 int start_count = 0;
 String reason = "";
 //I expect that code will alter these values in future
@@ -91,6 +108,11 @@ int feed_pause;
   int water_temp; 
   int feed_time = 30000; //30s in ms
 #endif
+
+// SETUP SERIAL COMM for inputs
+String inputString = "";         // a string to hold incoming data
+boolean stringComplete = false;  // whether the string is complete
+
 
 
 //Outputs
@@ -144,6 +166,7 @@ void setup() {
   pinMode(BUTTON_4, INPUT_PULLUP);
   // initialize serial communication:
   Serial.begin(115200);
+  inputString.reserve(200); // reserve mem for received message on serial port
   //#ifdef pid
     //initialize the PID variables we're linked to
     fanPID.SetOutputLimits(55, 80); //percentage of fan power
@@ -168,10 +191,67 @@ void setup() {
   //attachInterrupt(0,zeroCrossingInterrupt, RISING);    //Do this in run_fan()
     //IRQ0 is pin 2. Call zeroCrossingInterrupt 
     //on rising signal  
+  int state = 0;
+  #ifdef mqtt
+    //initialise state as idle on statup
+    Serial.print("MQTT:");
+    Serial.print(STATE_TOPIC);
+    Serial.print("message:")
+    Serial.println(state);
+    //set timer for publishng every 30s
+    timer.setInterval(30000, publish); //call publish() every 30s
+  #endif
 }
 
-//Interrupt Service Routines
+//MQTT stuff
+#ifdef mqtt
+  void publish() {
+    if (pub < 4) {
+      pub = 1;
+      while (pub < 4) { //publish these based on timer in right state
+        switch (pub) {
+          case WATER_TEMP_PUB:
+            Serial.print("MQTT:");
+            Serial.print(WATER_TEMP_TOPIC);
+            Serial.print("message:")
+            Serial.println(water_temp); 
+            break;
+          case AUGER_TEMP_PUB:
+            Serial.print("MQTT:");
+            Serial.print(AUGER_TEMP_TOPIC);
+            Serial.print("message:")
+            Serial.println(auger_temp); 
+            break;
+          case FLAME_PUB:
+            Serial.print("MQTT:");
+            Serial.print(FLAME_TOPIC);
+            Serial.print("message:")
+            Serial.println(flame_val); 
+            break;
+        }
+        pub++;
+      }else if (pub > 3) {
+        switch (pub) {
+          case STATE_PUB:
+            Serial.print("MQTT:");
+            Serial.print(STATE_TOPIC);
+            Serial.print("message:")
+            Serial.println(state); 
+            break;
+          case ERROR_PUB:
+            Serial.print("MQTT:");
+            Serial.print(ERROR_TOPIC);
+            Serial.print("message:")
+            Serial.println(reason); 
+            break;
+        }
+      pub = 0;
+    }
+  }
+#endif
 
+
+//Interrupt Service Routines
 void zeroCrossingInterrupt(){ //zero cross detect   
   TCCR1B=0x04; //start timer with divide by 256 input
   TCNT1 = 0;   //reset timer - count from zero
@@ -185,6 +265,18 @@ ISR(TIMER1_COMPA_vect){ //comparator match
 ISR(TIMER1_OVF_vect){ //timer1 overflow
   digitalWrite(GATE,LOW); //turn off TRIAC gate
   TCCR1B = 0x00;          //disable timer stopd unintended triggers
+}
+
+//setup serial receive
+void serialEvent() {
+  while (Serial.available()) {
+    // get the new byte:
+    char inChar = (char)Serial.read();  // add it to the inputString:
+    inputString += inChar;
+    if (inChar == '\n') {
+      stringComplete = true;
+    } 
+  }
 }
 
 void run_fan(int x) {
@@ -470,6 +562,15 @@ void proc_off() {
   debounce_start = 0;
   small_flame = false;
   reason = "";
+  //turn on if serial comms received
+  if (stringComplete) {
+    if (inputString.startsWith("Turn On Boiler")) {
+      inputString = "";
+      stringComplete = false;
+      state = STATE_IDLE;
+      //delay(10);
+    }
+  }
 }
 
 void safety() {
@@ -495,9 +596,11 @@ void loop() {
   //see if we need to turn on or off
   //dz calls it: 1-wire relay gets closed by DZ3
   if (digitalRead(DZ_PIN) == LOW) {
-    state = STATE_COOL_DOWN;
+    if ( state != STATE_IDLE ) {
+      state = STATE_COOL_DOWN;
+    } //else do nothing
   }
-  //Wait for on either via button or serial comms
+  //button press?
   if (digitalRead(BUTTON_1) == HIGH) {
     if (debounce_start == 0) {
       debounce_start = millis();
@@ -511,6 +614,17 @@ void loop() {
       debounce_start = 0;
     }else if (digitalRead(BUTTON_1) == LOW) { //button not held long enough so don't turn switch state and reset counter
       debounce_start = 0;
+    }
+  }
+  //serial instruction
+  if (state !=STATE_OFF) {
+    if (stringComplete) {
+      if (inputString.startsWith("Turn Off Boiler")) {
+        inputString = "";
+        stringComplete = false;
+        state = STATE_OFF;
+        //delay(10);
+      }
     }
   }
   switch (state) {
@@ -537,4 +651,13 @@ void loop() {
     Serial.print("State = ");
     Serial.print(state);
   #endif 
+   if (stringComplete){
+    inputString = "";
+    stringComplete = false;
+  #ifdef mqtt
+    if ((state == STATE_START_UP) or (state == STATE_HEATING) or (state == STATE_HEATING)) { //publish messages
+      timer.run();
+    }
+  #endif
+  }
 }
