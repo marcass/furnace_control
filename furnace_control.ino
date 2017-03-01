@@ -22,19 +22,19 @@ LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I
 //need to set contrast and backlight and check pin assignments
 
 //Constants
-const int ELEMENT_TIME = 120000; //2min in ms
-const int START_FEED_TIME = 30000; //30s in ms for pellet feed initially
+const int ELEMENT_TIME = 360000; //6min in ms
+const int START_FEED_TIME = 140000; //2min 20s in ms for pellet feed initially
 const int LOW_TEMP = 50; //deg C -> low end of heating range
 const int HIGH_TEMP = 75; //deg C -> high end of heating range
-const int MID_TEMP = 65; //Send back to heating if over heats form here
+const int MID_TEMP = 68; //Send back to heating if over heats form here
 const int TOO_HOT_TEMP = 85; //cool down NOW
 const int AUGER_OVER_TEMP = 55; //deg C - don't want a hopper fire
 const int START_FAN_TIME = 20000; //20s in ms for time to blow to see if flame present
-const int FLAME_VAL_THRESHOLD = 120;//work out a value here that is reasonable
-const int START_FLAME = 80;
+const int FLAME_VAL_THRESHOLD = 70;//work out a value here that is reasonable
+const int START_FLAME = 15;
 const int PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
 const int BUTTON_ON_THRESHOLD = 1500;//1.5s in ms for turning from off to idle and vice versa
-const int FEED_PAUSE = 40000; //20s and calculating a result so might need to be a float
+const int FEED_PAUSE = 60000; //60s and calculating a result so might need to be a float
 
 //States
 const int STATE_IDLE = 0;
@@ -63,7 +63,6 @@ int state = 0;
 int start_count = 0;
 String reason = "";
 //I expect that code will alter these values in future
-int feed_time = 5000; //5s in ms
 unsigned long start_feed_time = 0;
 unsigned long start_feed_pause = 0;
 unsigned long start_pump_time = 0;
@@ -79,16 +78,18 @@ int feed_pause;
   double power; //variable for percentage power we want fan to run at works from 30 (min) to 80 (max)
   double water_temp;
   double feed_pause_percent;
+  double feed_percent;
   //Specify the links and initial tuning parameters
   //PID fanPID(&Input, &Output, &Setpoint,2,5,1, DIRECT);
   PID fanPID(&water_temp, &power, &TEMP_SET_POINT,2,5,1, DIRECT); //need more fan power to get hotter so DIRECT
-  PID pelletsPID(&water_temp, &feed_pause_percent, &TEMP_SET_POINT,2,5,1, REVERSE); //need shorter feed time to get to hotter so REVERSE
+  PID pausePID(&water_temp, &feed_pause_percent, &TEMP_SET_POINT,2,5,1, REVERSE); //need shorter feed time to get to hotter so REVERSE
+  PID feedPID(&water_temp, &feed_percent, &TEMP_SET_POINT,2,5,1, DIRECT);
 #endif
 
 #ifdef no_PID
   int power; //variable for percentage power we want fan to run at works from 30 (min) to 80 (max)
-  int water_temp;
-  const int FEED_SET_POINT = 20000; //20s 
+  int water_temp; 
+  int feed_time = 30000; //30s in ms
 #endif
 
 
@@ -147,11 +148,14 @@ void setup() {
     //initialize the PID variables we're linked to
     fanPID.SetOutputLimits(55, 80); //percentage of fan power
     fanPID.SetSampleTime(3000); //SAMPLES EVERY 3s
-    pelletsPID.SetOutputLimits(60,100); //percentage of feed time check to see that burning all of load
-    pelletsPID.SetSampleTime(3000);
+    pausePID.SetOutputLimits(60,100); //percentage of feed time check to see that burning all of load
+    pausePID.SetSampleTime(3000);
+    feedPID.SetOutputLimits(60,100); //percentage of feed time check to see that burning all of load
+    feedPID.SetSampleTime(3000);
     //turn the PID on
     fanPID.SetMode(AUTOMATIC);
-    pelletsPID.SetMode(AUTOMATIC);
+    pausePID.SetMode(AUTOMATIC);
+    feedPID.SetMode(AUTOMATIC);
   //#endif
 
   //set up timer1 for ac detection
@@ -347,7 +351,7 @@ void proc_heating() {
   #ifdef pid
     //set fan power and pellets pausse variable via PID lib here
     fanPID.Compute();
-    pelletsPID.Compute();
+    pausePID.Compute();
     #ifdef debug
       Serial.print("Fan power = ");
       Serial.print(power);
@@ -489,6 +493,10 @@ void safety() {
 void loop() {
   safety();
   //see if we need to turn on or off
+  //dz calls it: 1-wire relay gets closed by DZ3
+  if (digitalRead(DZ_PIN) == LOW) {
+    state = STATE_COOL_DOWN;
+  }
   //Wait for on either via button or serial comms
   if (digitalRead(BUTTON_1) == HIGH) {
     if (debounce_start == 0) {
