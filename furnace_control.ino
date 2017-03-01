@@ -4,8 +4,8 @@
  BOILER CONTROL
  *******************************/
 #define debug
-#define PID //use if PID controlling fan output
-#define no_PID //use if not pid controlling
+#define pid //use if PID controlling fan output
+//#define no_PID //use if not pid controlling
 
 //Libraries
 #include <Wire.h>
@@ -71,7 +71,7 @@ int on_wait; //variable for converting power to timer value
 bool small_flame = false;
 float feed_pause = 20000; //20s and calculating a result so might need to be a float
 
-#ifdef PID
+#ifdef pid
   //PID setup
   //double Setpoint, Input, Output;
   double TEMP_SET_POINT = 68; //PID SETPOINT
@@ -89,7 +89,7 @@ float feed_pause = 20000; //20s and calculating a result so might need to be a f
 #ifdef no_PID
   int power; //variable for percentage power we want fan to run at works from 30 (min) to 80 (max)
   int water_temp;
-  const int FEED_SET_POINT = 20000; //20s i
+  const int FEED_SET_POINT = 20000; //20s 
 #endif
 
 
@@ -144,7 +144,7 @@ void setup() {
   pinMode(BUTTON_4, INPUT_PULLUP);
   // initialize serial communication:
   Serial.begin(115200);
-  #ifdef PID
+  //#ifdef pid
     //initialize the PID variables we're linked to
     fanPID.SetOutputLimits(30, 80); //percentage of fan power
     fanPID.SetSampleTime(3000); //SAMPLES EVERY 3s
@@ -153,7 +153,7 @@ void setup() {
     //turn the PID on
     fanPID.SetMode(AUTOMATIC);
     pelletsPID.SetMode(AUTOMATIC);
-  #endif
+  //#endif
 
   //set up timer1 for ac detection
   //(see ATMEGA 328 data sheet pg 134 for more details)
@@ -322,7 +322,7 @@ void fan_and_pellet_management() {
    * PELLETS MANAGMENT
    * pid managment of pause between feeding
    **************************************************/
-  #ifdef PID
+  #ifdef pid
     feed_pause = (feed_pause_percent / 100) * 20000; //caluclate actual pause from PID derived value
   #endif
   if (start_feed_time == 0) {
@@ -345,15 +345,15 @@ void fan_and_pellet_management() {
 }
 
 void proc_heating() {
-  #ifdef PID
+  #ifdef pid
     //set fan power and pellets pausse variable via PID lib here
     fanPID.Compute();
     pelletsPID.Compute();
     #ifdef debug
-      Serial.print("Fan power = ")
+      Serial.print("Fan power = ");
       Serial.print(power);
       Serial.print("%");
-      Serial.print("Pellets pause = ")
+      Serial.print("Pellets pause = ");
       Serial.print(feed_pause_percent);
       Serial.println("%");
     #endif
