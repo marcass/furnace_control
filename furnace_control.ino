@@ -24,16 +24,16 @@ LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I
 //Constants
 const int ELEMENT_TIME = 120000; //2min in ms
 const int START_FEED_TIME = 30000; //30s in ms for pellet feed initially
-const int LOW_TEMP = 45; //deg C -> low end of heating range
+const int LOW_TEMP = 50; //deg C -> low end of heating range
 const int HIGH_TEMP = 75; //deg C -> high end of heating range
 const int MID_TEMP = 65; //Send back to heating if over heats form here
 const int TOO_HOT_TEMP = 85; //cool down NOW
 const int AUGER_OVER_TEMP = 55; //deg C - don't want a hopper fire
 const int START_FAN_TIME = 20000; //20s in ms for time to blow to see if flame present
-const int FLAME_VAL_THRESHOLD = 300;//work out a value here that is reasonable
+const int FLAME_VAL_THRESHOLD = 120;//work out a value here that is reasonable
 const int NO_FLAME = 100; 
-const int START_FLAME = 200;
-const int PUMP_TIME = 30000; //30s in ms
+const int START_FLAME = 80;
+const int PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
 const int BUTTON_ON_THRESHOLD = 1500;//1.5s in ms for turning from off to idle and vice versa
 
 //States
@@ -219,6 +219,29 @@ void proc_idle() {
   }
 }
 
+void going_yet() {
+  /*startup sequence
+   * 1. check to see if heaps of light -> heating
+   * 2. check to see if a little bit of light -> fan and go to 1
+   * 3. if no light roused -> pellet dump and element start then go to 1
+   */
+  //read light in firebox
+  flame_val = analogRead(LIGHT);
+  if (flame_val > FLAME_VAL_THRESHOLD) { //if plenty of light go to heating
+    state = STATE_HEATING;
+    fan_start = 0;
+    element_start = 0;
+    auger_start = 0;
+  }else if (flame_val > START_FLAME) { //a little bit of light so lets gently blow
+    run_fan(30); //run fan at 30%
+    if (fan_start == 0) {
+      fan_start = millis();
+    }else {
+      //go back to doing what you were
+    }
+  }
+}
+
 void proc_start_up() {
   //safety first
   auger_temp = int(Thermistor(analogRead(AUGER_TEMP)));
@@ -230,59 +253,50 @@ void proc_start_up() {
   if (digitalRead(DZ_PIN) == HIGH) {
     state = STATE_COOL_DOWN;
   }
-  //read light in firebox
-  flame_val = analogRead(LIGHT);
-  //if plenty of light go to 
-
-  
   //kill if failed to start too many times
   if (start_count > 2) {
     state = STATE_ERROR;
     reason = "failed to start";
   }
-  //dump pellets to light with element
-  if (auger_start == 0) {
-    digitalWrite(AUGER, HIGH);
-    auger_start = millis();
+  going_yet(); //perform check
+  if (fan_start > START_FAN_TIME) { //no flame made in initial blow
+    //if not, dump pellets to light with element
+    fan_start = 0; //reset fan timer
+    if (auger_start == 0) {
+      digitalWrite(AUGER, HIGH);
+      auger_start = millis();
+    }
+    if (millis() - auger_start > START_FEED_TIME) {
+      //stop feeding pellets
+      digitalWrite(AUGER, LOW);
+      digitalWrite(ELEMENT, HIGH); //start element
+      if (element_start == 0) { //start element timer if not already started
+        element_start = millis();
+      }
+      //test to see if element been on for too enough and stop it if it has
+      if (millis() - element_start > ELEMENT_TIME) {
+        digitalWrite(ELEMENT, LOW);
+        going_yet(); //perform check. if no flame fan the puck anyway
+        run_fan(30);
+        if (fan_start == 0) {
+          fan_start = millis();
+        }
+        
+
+        //start from here
+        
+        //if still no light in fanning flames time kill fan and go back to start of start up
+        if (millis() - fan_start > START_FAN_TIME) {
+          stop_fan();
+          fan_start = 0;
+          //go back to start and dump another load
+          auger_start = 0;
+          //increment start count
+          start_count = start_count++;
+        }
+      }
+    }     
   }
-  if (millis() - auger_start > START_FEED_TIME) {
-    //stop feeding pellets
-    digitalWrite(AUGER, LOW);
-    //start element
-    if (element_start == 0) {
-      digitalWrite(ELEMENT, HIGH);
-      element_start = millis();
-    }
-    if ((flame_val > START_FLAME) && (flame_val < FLAME_VAL_THRESHOLD)) { //little bit of light but needs help
-      //gentle fanning to get going
-      run_fan(20); //run fan at 20%
-    }
-    //test to see if element been on for too enough and stop it if it has
-    if (millis() - element_start > ELEMENT_TIME) {
-      //fan the flames until light is seen or wait threshhold is over
-      digitalWrite(ELEMENT, LOW);
-      element_start = 0;
-      if (fan_start == 0) {
-        fan_start = millis();
-        run_fan(20); //run fan at 20%
-      }
-      if (flame_val > FLAME_VAL_THRESHOLD) {
-        //we have flame, so:
-        state = STATE_HEATING;
-        start_count = 0;
-        fan_start = 0;
-      }
-      //if still no light in fanning flames time kill fan and go back to start of start up
-      if (millis() - fan_start > START_FAN_TIME) {
-        stop_fan();
-        fan_start = 0;
-        //go back to start and dump another load
-        auger_start = 0;
-        //increment start count
-        start_count = start_count++;
-      }
-    }
-  }     
 }
 
 void fan_and_pellet_management() {
