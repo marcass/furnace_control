@@ -5,7 +5,7 @@
 
 //PID setup
 //double Setpoint, Input, Output;
-double TEMP_SET_POINT = 68; //PID SETPOINT
+double TEMP_SET_POINT = 50; //PID SETPOINT
 double power; //variable for percentage power we want fan to run at works from 30 (min) to 80 (max)
 double water_temp;
 double feed_pause_percent;
@@ -14,12 +14,13 @@ int feed_pause = 2000;
 
 //Specify the links and initial tuning parameters
 //PID fanPID(&Input, &Output, &Setpoint,2,5,1, DIRECT);
-PID fanPID(&water_temp, &power, &TEMP_SET_POINT,2,5,1, DIRECT); //need more fan power to get hotter so DIRECT
-PID pelletsPID(&water_temp, &feed_pause_percent, &FEED_SET_POINT,2,5,1, REVERSE); //need shorter feed time to get to hotter so REVERSE
-
+//PID fanPID(&water_temp, &power, &TEMP_SET_POINT,2,5,1, DIRECT); //need more fan power to get hotter so DIRECT
+//PID pelletsPID(&water_temp, &feed_pause_percent, &TEMP_SET_POINT,2,5,1, REVERSE); //need shorter feed time to get to hotter so REVERSE
+PID fanPID(&water_temp, &power, &TEMP_SET_POINT,0.1,1,1, DIRECT); //need more fan power to get hotter so DIRECT
+PID pelletsPID(&water_temp, &feed_pause_percent, &TEMP_SET_POINT,0.1,1,1, REVERSE); //need shorter feed time to get to hotter so REVERSE
 
 //Inputs
-const int WATER_TEMP = 3; //analogue pin 3
+const int WATER_TEMP = 1; //analogue pin 3
 
 //Analogue reading maths for temp
 double Thermistor(int RawADC) {
@@ -40,7 +41,7 @@ void setup() {
   fanPID.SetOutputLimits(30, 80); //percentage of fan power
   fanPID.SetSampleTime(500); //SAMPLES EVERY 0.5s
   pelletsPID.SetOutputLimits(60,100); //percentage of feed time check to see that burning all of load
-  pelletsPID.SetSampleTime(500);
+  pelletsPID.SetSampleTime(200);
   //turn the PID on
   fanPID.SetMode(AUTOMATIC);
   pelletsPID.SetMode(AUTOMATIC);
@@ -51,7 +52,10 @@ void loop() {
   fanPID.Compute();
   pelletsPID.Compute();
   feed_pause = (feed_pause_percent / 100) * 20000; //caluclate actual pause from PID derived value
-  Serial.print("Fan power = ");
+  
+  Serial.print("Temp = ");
+  Serial.print((int)water_temp);
+  Serial.print("  Fan power = ");
   Serial.print(power);
   Serial.print("%");
   Serial.print("  Pellets pause = ");

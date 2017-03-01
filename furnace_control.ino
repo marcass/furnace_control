@@ -34,6 +34,7 @@ const int FLAME_VAL_THRESHOLD = 120;//work out a value here that is reasonable
 const int START_FLAME = 80;
 const int PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
 const int BUTTON_ON_THRESHOLD = 1500;//1.5s in ms for turning from off to idle and vice versa
+const int FEED_PAUSE = 40000; //20s and calculating a result so might need to be a float
 
 //States
 const int STATE_IDLE = 0;
@@ -69,7 +70,7 @@ unsigned long start_pump_time = 0;
 unsigned long debounce_start = 0;
 int on_wait; //variable for converting power to timer value
 bool small_flame = false;
-float feed_pause = 20000; //20s and calculating a result so might need to be a float
+int feed_pause;
 
 #ifdef pid
   //PID setup
@@ -78,12 +79,10 @@ float feed_pause = 20000; //20s and calculating a result so might need to be a f
   double power; //variable for percentage power we want fan to run at works from 30 (min) to 80 (max)
   double water_temp;
   double feed_pause_percent;
-  double FEED_SET_POINT = 20000; //20s in ms
-  
   //Specify the links and initial tuning parameters
   //PID fanPID(&Input, &Output, &Setpoint,2,5,1, DIRECT);
   PID fanPID(&water_temp, &power, &TEMP_SET_POINT,2,5,1, DIRECT); //need more fan power to get hotter so DIRECT
-  PID pelletsPID(&water_temp, &feed_pause_percent, &FEED_SET_POINT,2,5,1, REVERSE); //need shorter feed time to get to hotter so REVERSE
+  PID pelletsPID(&water_temp, &feed_pause_percent, &TEMP_SET_POINT,2,5,1, REVERSE); //need shorter feed time to get to hotter so REVERSE
 #endif
 
 #ifdef no_PID
@@ -146,7 +145,7 @@ void setup() {
   Serial.begin(115200);
   //#ifdef pid
     //initialize the PID variables we're linked to
-    fanPID.SetOutputLimits(30, 80); //percentage of fan power
+    fanPID.SetOutputLimits(55, 80); //percentage of fan power
     fanPID.SetSampleTime(3000); //SAMPLES EVERY 3s
     pelletsPID.SetOutputLimits(60,100); //percentage of feed time check to see that burning all of load
     pelletsPID.SetSampleTime(3000);
@@ -323,7 +322,7 @@ void fan_and_pellet_management() {
    * pid managment of pause between feeding
    **************************************************/
   #ifdef pid
-    feed_pause = (feed_pause_percent / 100) * 20000; //caluclate actual pause from PID derived value
+    feed_pause = (feed_pause_percent / 100) * FEED_PAUSE; //caluclate actual pause from PID derived value
   #endif
   if (start_feed_time == 0) {
     digitalWrite(AUGER, HIGH);
