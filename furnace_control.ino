@@ -10,7 +10,6 @@
 
 
 //Libraries
-#include <SimpleTimer.h>
 #include <Wire.h>
 //https://bitbucket.org/fmalpartida/new-liquidcrystal/wiki/Home
 #include <LiquidCrystal_I2C.h>
@@ -38,19 +37,22 @@ const int START_FLAME = 15;
 const int PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
 const int BUTTON_ON_THRESHOLD = 1500;//1.5s in ms for turning from off to idle and vice versa
 const int FEED_PAUSE = 60000; //60s and calculating a result so might need to be a float
+const int FEED_TIME = 30000;
 
 #ifdef mqtt
-  const int STATE_PUB = "4";
-  const int WATER_TEMP_PUB = "1"
-  const int AUGER_TEMP_PUB = "2"
-  const int FLAME_PUB = "3"
-  const int ERROR_PUB = "5"
-  const int pub = 4;
+  unsigned long pub_timer = 0;
+  const int PUB_INT = 60000; //publish values every minute
+  const int STATE_PUB = 4;
+  const int WATER_TEMP_PUB = 1;
+  const int AUGER_TEMP_PUB = 2;
+  const int FLAME_PUB = 3;
+  const int ERROR_PUB = 5;
+  int pub = 4;
   String STATE_TOPIC = "boiler/state";
-  String WATER_TEMP_TOPIC = "boiler/temp/water"
-  String AUGER_TEMP_TOPIC = "boiler/temp/auger"
-  String FLAME_TOPIC = "boiler/flame"
-  String ERROR_TOPIC = "boiler/messages"
+  String WATER_TEMP_TOPIC = "boiler/temp/water";
+  String AUGER_TEMP_TOPIC = "boiler/temp/auger";
+  String FLAME_TOPIC = "boiler/flame";
+  String ERROR_TOPIC = "boiler/messages";
 #endif
 
 //States
@@ -87,6 +89,7 @@ unsigned long debounce_start = 0;
 int on_wait; //variable for converting power to timer value
 bool small_flame = false;
 int feed_pause;
+int feed_time;
 
 #ifdef pid
   //PID setup
@@ -106,7 +109,6 @@ int feed_pause;
 #ifdef no_PID
   int power; //variable for percentage power we want fan to run at works from 30 (min) to 80 (max)
   int water_temp; 
-  int feed_time = 30000; //30s in ms
 #endif
 
 // SETUP SERIAL COMM for inputs
@@ -167,19 +169,19 @@ void setup() {
   // initialize serial communication:
   Serial.begin(115200);
   inputString.reserve(200); // reserve mem for received message on serial port
-  //#ifdef pid
+  #ifdef pid
     //initialize the PID variables we're linked to
     fanPID.SetOutputLimits(55, 80); //percentage of fan power
     fanPID.SetSampleTime(3000); //SAMPLES EVERY 3s
     pausePID.SetOutputLimits(60,100); //percentage of feed time check to see that burning all of load
     pausePID.SetSampleTime(3000);
-    feedPID.SetOutputLimits(60,100); //percentage of feed time check to see that burning all of load
+    feedPID.SetOutputLimits(20,100); //percentage of feed time check to see that burning all of load
     feedPID.SetSampleTime(3000);
     //turn the PID on
     fanPID.SetMode(AUTOMATIC);
     pausePID.SetMode(AUTOMATIC);
     feedPID.SetMode(AUTOMATIC);
-  //#endif
+  #endif
 
   //set up timer1 for ac detection
   //(see ATMEGA 328 data sheet pg 134 for more details)
@@ -196,10 +198,8 @@ void setup() {
     //initialise state as idle on statup
     Serial.print("MQTT:");
     Serial.print(STATE_TOPIC);
-    Serial.print("message:")
+    Serial.print("/");
     Serial.println(state);
-    //set timer for publishng every 30s
-    timer.setInterval(30000, publish); //call publish() every 30s
   #endif
 }
 
@@ -207,45 +207,45 @@ void setup() {
 #ifdef mqtt
   void publish() {
     if (pub < 4) {
-      pub = 1;
-      while (pub < 4) { //publish these based on timer in right state
+      for (pub = 1; pub < 4; pub++) { //publish these based on timer in right state
         switch (pub) {
           case WATER_TEMP_PUB:
             Serial.print("MQTT:");
             Serial.print(WATER_TEMP_TOPIC);
-            Serial.print("message:")
+            Serial.print("/");
             Serial.println(water_temp); 
             break;
           case AUGER_TEMP_PUB:
             Serial.print("MQTT:");
             Serial.print(AUGER_TEMP_TOPIC);
-            Serial.print("message:")
+            Serial.print("/");
             Serial.println(auger_temp); 
             break;
           case FLAME_PUB:
             Serial.print("MQTT:");
             Serial.print(FLAME_TOPIC);
-            Serial.print("message:")
+            Serial.print("/");
             Serial.println(flame_val); 
             break;
         }
-        pub++;
-      }else if (pub > 3) {
-        switch (pub) {
-          case STATE_PUB:
-            Serial.print("MQTT:");
-            Serial.print(STATE_TOPIC);
-            Serial.print("message:")
-            Serial.println(state); 
-            break;
-          case ERROR_PUB:
-            Serial.print("MQTT:");
-            Serial.print(ERROR_TOPIC);
-            Serial.print("message:")
-            Serial.println(reason); 
-            break;
-        }
+      }
       pub = 0;
+    }else if (pub > 3) { //publish when called in code
+      switch (pub) {
+        case STATE_PUB:
+          Serial.print("MQTT:");
+          Serial.print(STATE_TOPIC);
+          Serial.print("/");
+          Serial.println(state); 
+          break;
+        case ERROR_PUB:
+          Serial.print("MQTT:");
+          Serial.print(ERROR_TOPIC);
+          Serial.print("/");
+          Serial.println(reason); 
+          break;
+      }
+    pub = 0;
     }
   }
 #endif
@@ -322,6 +322,10 @@ void proc_idle() {
   //1-wire relay gets closed by DZ3
   if (digitalRead(DZ_PIN) == LOW) {
     state = STATE_START_UP;
+    #ifdef mqtt
+      pub = STATE_PUB;
+      publish();
+    #endif
   }else {
     //twiddle thumbs
   }
@@ -337,6 +341,10 @@ void going_yet() {
   flame_val = analogRead(LIGHT);
   if (flame_val > FLAME_VAL_THRESHOLD) { //if plenty of light go to heating
     state = STATE_HEATING;
+    #ifdef mqtt
+      pub = STATE_PUB;
+      publish();
+    #endif    
     fan_start = 0;
     element_start = 0;
     auger_start = 0;
@@ -358,6 +366,11 @@ void proc_start_up() {
   if (start_count > 2) {
     state = STATE_ERROR;
     reason = "failed to start";
+    #ifdef mqtt
+      pub = ERROR_PUB;
+      publish();
+      reason = "";
+    #endif    
   }
   going_yet(); //perform check in each loop
   if (millis() - fan_start > START_FAN_TIME) { // either unable to graduate from small flame to large or no flame
@@ -406,6 +419,10 @@ void fan_and_pellet_management() {
     run_fan(100);
   }else if (water_temp > TOO_HOT_TEMP) {
     state = STATE_COOL_DOWN;
+    #ifdef mqtt
+      pub = STATE_PUB;
+      publish();
+    #endif    
   }else {
     #ifdef no_PID
       power = 75; //arbitrary value
@@ -419,6 +436,11 @@ void fan_and_pellet_management() {
    **************************************************/
   #ifdef pid
     feed_pause = (feed_pause_percent / 100) * FEED_PAUSE; //caluclate actual pause from PID derived value
+    feed_time = (feed_percent / 100) * FEED_TIME;
+  #endif
+  #ifdef no_PID //won't be changing so set to const int value
+    feed_time = FEED_TIME;
+    feed_pause = FEED_PAUSE;
   #endif
   if (start_feed_time == 0) {
     digitalWrite(AUGER, HIGH);
@@ -456,6 +478,10 @@ void proc_heating() {
   //test to see if dz aborts
   if (digitalRead(DZ_PIN) == HIGH) {
     state = STATE_COOL_DOWN;
+    #ifdef mqtt
+      pub = STATE_PUB;
+      publish();
+    #endif    
   }
   //dump pellets into flame box with timed auger runs
   //run the fan. Ideally pwm control based on PID info of temp change but simple for now
@@ -463,6 +489,10 @@ void proc_heating() {
   //If not enough flame start again
   if (flame_val < START_FLAME) {
     state = STATE_START_UP;
+    #ifdef mqtt
+      pub = STATE_PUB;
+      publish();
+    #endif    
   }
   fan_and_pellet_management();
   //pump water when it is in the bands
@@ -474,6 +504,10 @@ void proc_heating() {
     //kill fan if too hot
     if (water_temp > TOO_HOT_TEMP) {
       state = STATE_COOL_DOWN;
+      #ifdef mqtt
+        pub = STATE_PUB;
+        publish();
+      #endif
     }
   }
   if (water_temp < LOW_TEMP) {
@@ -502,6 +536,10 @@ void proc_cool_down() {
     if (digitalRead(DZ_PIN) == LOW) {
       //get back to heating
       state = STATE_HEATING;
+      #ifdef mqtt
+        pub = STATE_PUB;
+        publish();
+      #endif      
     }
     if (digitalRead(DZ_PIN) == HIGH) {
       //no heat needed so empty fire box
@@ -518,6 +556,10 @@ void proc_cool_down() {
       }
       if ((flame_val < START_FLAME) && (water_temp < LOW_TEMP)) {
         state = STATE_IDLE;
+        #ifdef mqtt
+          pub = STATE_PUB;
+          publish();
+        #endif        
       }
     }
   }
@@ -568,6 +610,10 @@ void proc_off() {
       inputString = "";
       stringComplete = false;
       state = STATE_IDLE;
+      #ifdef mqtt
+        pub = STATE_PUB;
+        publish();
+      #endif      
       //delay(10);
     }
   }
@@ -577,12 +623,21 @@ void safety() {
   water_temp = int(Thermistor(analogRead(WATER_TEMP)));
   if (water_temp > TOO_HOT_TEMP) {
     state = STATE_COOL_DOWN;
+    #ifdef mqtt
+      pub = STATE_PUB;
+      publish();
+    #endif    
   }
   //if auger too hot go into error
   auger_temp = int(Thermistor(analogRead(AUGER_TEMP)));
   if (auger_temp > AUGER_OVER_TEMP) {
     state = STATE_ERROR;
     reason = "Auger too hot";
+    #ifdef mqtt
+      pub = ERROR_PUB;
+      publish();
+      reason = "";
+    #endif    
     #ifdef debug
       Serial.print("Auger temp is: ");
       Serial.println(auger_temp);
@@ -598,6 +653,10 @@ void loop() {
   if (digitalRead(DZ_PIN) == LOW) {
     if ( state != STATE_IDLE ) {
       state = STATE_COOL_DOWN;
+      #ifdef mqtt
+        pub = STATE_PUB;
+        publish();
+      #endif      
     } //else do nothing
   }
   //button press?
@@ -608,8 +667,16 @@ void loop() {
     if (millis() - debounce_start > BUTTON_ON_THRESHOLD) {
       if (state != STATE_OFF) {
         state = STATE_IDLE;
+        #ifdef mqtt
+          pub = STATE_PUB;
+          publish();
+        #endif        
       }else {
         state = STATE_OFF;
+        #ifdef mqtt
+          pub = STATE_PUB;
+          publish();
+        #endif        
       }
       debounce_start = 0;
     }else if (digitalRead(BUTTON_1) == LOW) { //button not held long enough so don't turn switch state and reset counter
@@ -623,6 +690,10 @@ void loop() {
         inputString = "";
         stringComplete = false;
         state = STATE_OFF;
+        #ifdef mqtt
+          pub = STATE_PUB;
+          publish();
+        #endif        
         //delay(10);
       }
     }
@@ -649,15 +720,22 @@ void loop() {
     }
   #ifdef debug
     Serial.print("State = ");
-    Serial.print(state);
+    Serial.println(state);
   #endif 
    if (stringComplete){
     inputString = "";
     stringComplete = false;
   #ifdef mqtt
     if ((state == STATE_START_UP) or (state == STATE_HEATING) or (state == STATE_HEATING)) { //publish messages
-      timer.run();
+      if (pub_timer == 0) {
+        pub_timer = millis(); 
+      }
+      if (millis() - pub_timer > PUB_INT) {
+        publish(); //publish values
+        pub_timer = 0;
+      }  
     }
   #endif
   }
+  //delay(200);
 }
