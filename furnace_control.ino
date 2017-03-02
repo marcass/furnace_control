@@ -351,7 +351,7 @@ void going_yet() {
     small_flame = false;
     start_count = 0;
   }else if (flame_val > START_FLAME) { //a little bit of light so lets gently blow and see if flame_val_threshold breached
-    run_fan(40); //run fan at 30%
+    run_fan(40); //run fan at 40%
     small_flame = true;
     if (fan_start == 0) {
       fan_start = millis();
@@ -382,9 +382,8 @@ void proc_start_up() {
       stop_fan();
       start_count++;
       fan_start = 0;
-    }else {
-      run_fan(40);
-    }
+    } 
+    run_fan(40);
   }
   if (start_count > 0) {
     if (dump) {
