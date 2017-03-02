@@ -84,13 +84,13 @@ int state;
 int start_count = 0;
 String reason = "";
 bool feeding = true;
+bool run_fan = false;
 //I expect that code will alter these values in future
 unsigned long start_feed_time = 0;
 unsigned long start_feed_pause = 0;
 unsigned long start_pump_time = 0;
 unsigned long debounce_start = 0;
 int on_wait; //variable for converting power to timer value
-bool small_flame = false;
 int feed_pause;
 int feed_time;
 
@@ -349,11 +349,9 @@ void going_yet() {
     fan_start = 0;
     element_start = 0;
     auger_start = 0;
-    small_flame = false;
     start_count = 0;
   }else if (flame_val > START_FLAME) { //a little bit of light so lets gently blow and see if flame_val_threshold breached
     run_fan(40); //run fan at 40%
-    small_flame = true;
     if (fan_start == 0) {
       fan_start = millis();
     }else {
@@ -373,25 +371,29 @@ void proc_start_up() {
       reason = "";
     #endif    
   }
+  //run fan if true
+  if (run_fan) {
+    run_fan(40);
+  }
   going_yet(); //perform check in each loop
   //start fan on count 1 of each start up to see if flames present
-  if (start_count == 0) { //start fan
+  if (start_count == 0) {
+    run_fan = true;
     if (fan_start == 0) {
       fan_start = millis();
     }
     if (millis() - fan_start > START_FAN_TIME) {
+      run_fan = false;
       stop_fan();
       start_count++;
       fan_start = 0;
-    }else {
-      run_fan(40);
-    } 
+    }
   }
   if (start_count > 0) {
     if (dump) {
       if (auger_start == 0) {
         auger_start = millis();
-        //fan_start = 0; //reset fan timer so we can start fanning again
+        
       }
       if (millis() - auger_start > START_FEED_TIME) {
         //stop feeding pellets
@@ -418,21 +420,20 @@ void proc_start_up() {
         #ifdef debug
           Serial.println("Element on long enough so turned off");
         #endif        
-        if (!small_flame) { //no flame detected, fan puck to see if we can get one
-          run_fan(40);
-          if (fallback_fan_start == 0) {
-            fallback_fan_start = millis();
-          } //loop back to see if going for a bit
-          if (millis() - fallback_fan_start > START_FAN_TIME) { //no flame made - hopeless so start again
-            stop_fan();
-            fallback_fan_start = 0;
-            //go back to start and dump another load
-            auger_start = 0;
-            //increment start count
-            start_count++;
-            elem = false;
-            dump = true;
-          }
+        run_fan = true;//fan puck for a while to see if picked up in going yet
+        if (fallback_fan_start == 0) {
+          fallback_fan_start = millis();
+        } //loop back to see if going for a bit
+        if (millis() - fallback_fan_start > START_FAN_TIME) { //no flame made - hopeless so start again
+          run_fan = false;
+          stop_fan();
+          fallback_fan_start = 0;
+          //go back to start and dump another load
+          auger_start = 0;
+          //increment start count
+          start_count++;
+          elem = false;
+          dump = true;
         }
       }else {
         digitalWrite(ELEMENT, HIGH); //start element
@@ -678,7 +679,6 @@ void proc_off() {
   start_feed_pause = 0;
   start_pump_time = 0;
   debounce_start = 0;
-  small_flame = false;
   reason = "";
   //turn on if serial comms received
   if (stringComplete) {
