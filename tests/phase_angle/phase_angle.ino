@@ -33,7 +33,8 @@
 #include <avr/interrupt.h>
 #include <math.h>
 
-
+int flame_val;
+const int LIGHT = 2;
 #define DETECT 2  //zero cross detect
 #define GATE 9    //TRIAC gate
 #define PULSE 4   //trigger pulse width (counts)
@@ -125,8 +126,10 @@ void run_fan(int x) {
     }else {
       OCR1A = on_wait;
     }
+    #ifdef test
     Serial.print("   Number of counts until fire = ");
     Serial.println(OCR1A);
+    #endif
   }
   
 }
@@ -173,7 +176,10 @@ void loop(){ // sample code to exercise the circuit
         inString = "";
       }
     }
-    Serial.print("Power = ");
+    flame_val = analogRead(LIGHT);
+    Serial.print("Light = ");
+    Serial.print(flame_val);
+    Serial.print("  Power = ");
     Serial.println(power); 
     
     run_fan(power); 

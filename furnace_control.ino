@@ -38,6 +38,8 @@ const int PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
 const int BUTTON_ON_THRESHOLD = 1500;//1.5s in ms for turning from off to idle and vice versa
 const int FEED_PAUSE = 60000; //60s and calculating a result so might need to be a float
 const int FEED_TIME = 30000;
+bool dump = true;
+bool elem = false;
 
 #ifdef mqtt
   unsigned long pub_timer = 0;
@@ -347,6 +349,7 @@ void going_yet() {
   flame_val = analogRead(LIGHT);
   if (flame_val > FLAME_VAL_THRESHOLD) { //if plenty of light go to heating
     state = STATE_HEATING;
+    dump = true; //set up fpor next start up
     #ifdef mqtt
       pub = STATE_PUB;
       publish();
@@ -379,22 +382,39 @@ void proc_start_up() {
     #endif    
   }
   going_yet(); //perform check in each loop
-  if (millis() - fan_start > START_FAN_TIME) { // either unable to graduate from small flame to large or no flame
-    stop_fan();
-    digitalWrite(AUGER, HIGH); //dump pellets
-    #ifdef debug
-      Serial.println("Auger on");
-    #endif    
-    if (auger_start == 0) {
-      auger_start = millis();
-      fan_start = 0; //reset fan timer so we can start fanning again
+  //start fan on count 1 of each start up to see if flames present
+  if (start_count == 0) { //start fan
+    run_fan(40);
+    if (fan_start == 0) {
+      fan_start = millis();
     }
-    if (millis() - auger_start > START_FEED_TIME) {
-      //stop feeding pellets
-      digitalWrite(AUGER, LOW);
+    if (millis() - fan_start > START_FAN_TIME) {
+      stop_fan();
+      start_count++;
+      fan_start = 0;
+    }
+  }
+  if (start_count > 0) {
+    if (dump) {
+      digitalWrite(AUGER, HIGH); //dump pellets
       #ifdef debug
-        Serial.println("Auger off");
-      #endif      
+        Serial.println("Auger on");
+      #endif    
+      if (auger_start == 0) {
+        auger_start = millis();
+        //fan_start = 0; //reset fan timer so we can start fanning again
+      }
+      if (millis() - auger_start > START_FEED_TIME) {
+        //stop feeding pellets
+        digitalWrite(AUGER, LOW);
+        dump = false;
+        elem = true;
+        #ifdef debug
+          Serial.println("Auger off");
+        #endif
+      }
+    }     
+    if (elem) {
       digitalWrite(ELEMENT, HIGH); //start element
       #ifdef debug
         Serial.println("Element on");
@@ -406,16 +426,15 @@ void proc_start_up() {
       if (millis() - element_start > ELEMENT_TIME) {
         digitalWrite(ELEMENT, LOW);
         #ifdef debug
-          Serial.println("Element off");
+          Serial.println("Element on long enough so turned off");
         #endif        
         if (!small_flame) { //no flame detected, fan puck to see if we can get one
-          run_fan(30);
+          run_fan(40);
           if (fallback_fan_start == 0) {
             fallback_fan_start = millis();
           } //loop back to see if going for a bit
           if (millis() - fallback_fan_start > START_FAN_TIME) { //no flame made - hopeless so start again
             stop_fan();
-            fan_start = 0;
             fallback_fan_start = 0;
             //go back to start and dump another load
             auger_start = 0;
@@ -423,8 +442,8 @@ void proc_start_up() {
             start_count = start_count++;
           }
         }
-      }
-    }     
+      }     
+    }
   }
 }
 
@@ -601,7 +620,13 @@ void proc_cool_down() {
         #endif        
       }
     }
-  }
+  }else {
+    state = STATE_IDLE;
+    #ifdef mqtt
+      pub = STATE_PUB;
+      publish();
+    #endif 
+  }   
 }
 
 void proc_error() {
@@ -693,7 +718,7 @@ void loop() {
   safety();
   //see if we need to turn on or off
   //dz calls it: 1-wire relay gets closed by DZ3
-  if (digitalRead(DZ_PIN) == LOW) {
+  if (digitalRead(DZ_PIN) == HIGH) {
     if ( state != STATE_IDLE ) {
       state = STATE_COOL_DOWN;
       #ifdef mqtt
@@ -780,5 +805,5 @@ void loop() {
     }
   #endif
   }
-  //delay(200);
+  delay(200);
 }
