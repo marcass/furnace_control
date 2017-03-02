@@ -24,32 +24,32 @@ LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I
 //need to set contrast and backlight and check pin assignments
 
 //Constants
-const int ELEMENT_TIME = 360000; //6min in ms
-const int START_FEED_TIME = 140000; //2min 20s in ms for pellet feed initially
+const long ELEMENT_TIME = 360000; //6min in ms
+const long START_FEED_TIME = 140000; //2min 20s in ms for pellet feed initially
 const int LOW_TEMP = 50; //deg C -> low end of heating range
 const int HIGH_TEMP = 75; //deg C -> high end of heating range
 const int MID_TEMP = 68; //Send back to heating if over heats form here
 const int TOO_HOT_TEMP = 85; //cool down NOW
 const int AUGER_OVER_TEMP = 55; //deg C - don't want a hopper fire
-const int START_FAN_TIME = 20000; //20s in ms for time to blow to see if flame present
+const long START_FAN_TIME = 20000; //20s in ms for time to blow to see if flame present
 const int FLAME_VAL_THRESHOLD = 70;//work out a value here that is reasonable
 const int START_FLAME = 15;
-const int PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
+const long PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
 const int BUTTON_ON_THRESHOLD = 1500;//1.5s in ms for turning from off to idle and vice versa
-const int FEED_PAUSE = 60000; //60s and calculating a result so might need to be a float
-const int FEED_TIME = 30000;
+const long FEED_PAUSE = 60000; //60s and calculating a result so might need to be a float
+const long FEED_TIME = 30000;
 bool dump = true;
 bool elem = false;
 
 #ifdef mqtt
   unsigned long pub_timer = 0;
-  const int PUB_INT = 60000; //publish values every minute
+  const long PUB_INT = 60000; //publish values every minute
   const int STATE_PUB = 3;
   const int WATER_TEMP_PUB = 0;
   const int AUGER_TEMP_PUB = 1;
   const int FLAME_PUB = 2;
   const int ERROR_PUB = 4;
-  int pub[5] = {WATER_TEMP_PUB, AUGER_TEMP_PUB, FLAME_PUB, STATE_PUB, ERROR_PUB};
+  //int pub[5] = {WATER_TEMP_PUB, AUGER_TEMP_PUB, FLAME_PUB, STATE_PUB, ERROR_PUB};
   String STATE_TOPIC = "boiler/state";
   String WATER_TEMP_TOPIC = "boiler/temp/water";
   String AUGER_TEMP_TOPIC = "boiler/temp/auger";
@@ -208,47 +208,38 @@ void setup() {
 //MQTT stuff
 #ifdef mqtt
   void publish(int i) {
-    if (i < 3) {
-      for (i = 0; i < 3; i++) { //publish these based on timer in right state
-        switch (pub[i]) {
-          case WATER_TEMP_PUB:
-            Serial.print("MQTT:");
-            Serial.print(WATER_TEMP_TOPIC);
-            Serial.print("/");
-            Serial.println(water_temp); 
-            break;
-          case AUGER_TEMP_PUB:
-            Serial.print("MQTT:");
-            Serial.print(AUGER_TEMP_TOPIC);
-            Serial.print("/");
-            Serial.println(auger_temp); 
-            break;
-          case FLAME_PUB:
-            Serial.print("MQTT:");
-            Serial.print(FLAME_TOPIC);
-            Serial.print("/");
-            Serial.println(flame_val); 
-            break;
-        }
-      }
-      i = 0;
-    }else if (i > 3) { //publish when called in code
-      switch (pub[i]) {
-        case STATE_PUB:
-          Serial.print("MQTT:");
-          Serial.print(STATE_TOPIC);
-          Serial.print("/");
-          Serial.println(state); 
-          break;
-        case ERROR_PUB:
-          Serial.print("MQTT:");
-          Serial.print(ERROR_TOPIC);
-          Serial.print("/");
-          Serial.println(reason); 
-          break;
-      }
-    i = 0;
-    }
+//    #ifdef debug
+//      Serial.print("i = ");
+//      Serial.print(i);
+//      Serial.print("pub = ");
+//      Serial.println(pub[i]);
+//    #endif
+    if ( i == WATER_TEMP_PUB) {
+      Serial.print("MQTT:");
+      Serial.print(WATER_TEMP_TOPIC);
+      Serial.print("/");
+      Serial.println(water_temp); 
+    }else if (i== AUGER_TEMP_PUB) {
+      Serial.print("MQTT:");
+      Serial.print(AUGER_TEMP_TOPIC);
+      Serial.print("/");
+      Serial.println(auger_temp); 
+    }else if (i == FLAME_PUB) {
+      Serial.print("MQTT:");
+      Serial.print(FLAME_TOPIC);
+      Serial.print("/");
+      Serial.println(flame_val);
+    }else if ( i == STATE_PUB) {
+      Serial.print("MQTT:");
+      Serial.print(STATE_TOPIC);
+      Serial.print("/");
+      Serial.println(state); 
+    }else if ( i == ERROR_PUB) {
+      Serial.print("MQTT:");
+      Serial.print(ERROR_TOPIC);
+      Serial.print("/");
+      Serial.println(reason); 
+    }  
   }
 #endif
 
@@ -360,7 +351,7 @@ void going_yet() {
     small_flame = false;
     start_count = 0;
   }else if (flame_val > START_FLAME) { //a little bit of light so lets gently blow and see if flame_val_threshold breached
-    run_fan(30); //run fan at 30%
+    run_fan(40); //run fan at 30%
     small_flame = true;
     if (fan_start == 0) {
       fan_start = millis();
@@ -384,7 +375,6 @@ void proc_start_up() {
   going_yet(); //perform check in each loop
   //start fan on count 1 of each start up to see if flames present
   if (start_count == 0) { //start fan
-    run_fan(40);
     if (fan_start == 0) {
       fan_start = millis();
     }
@@ -392,14 +382,12 @@ void proc_start_up() {
       stop_fan();
       start_count++;
       fan_start = 0;
+    }else {
+      run_fan(40);
     }
   }
   if (start_count > 0) {
     if (dump) {
-      digitalWrite(AUGER, HIGH); //dump pellets
-      #ifdef debug
-        Serial.println("Auger on");
-      #endif    
       if (auger_start == 0) {
         auger_start = millis();
         //fan_start = 0; //reset fan timer so we can start fanning again
@@ -412,13 +400,14 @@ void proc_start_up() {
         #ifdef debug
           Serial.println("Auger off");
         #endif
+      }else {
+        digitalWrite(AUGER, HIGH); //dump pellets
+        #ifdef debug
+          Serial.println("Auger on");
+        #endif  
       }
     }     
     if (elem) {
-      digitalWrite(ELEMENT, HIGH); //start element
-      #ifdef debug
-        Serial.println("Element on");
-      #endif      
       if (element_start == 0) { //start element timer if not already started
         element_start = millis();
       }
@@ -439,9 +428,16 @@ void proc_start_up() {
             //go back to start and dump another load
             auger_start = 0;
             //increment start count
-            start_count = start_count++;
+            start_count++;
+            elem = false;
+            dump = true;
           }
         }
+      }else {
+        digitalWrite(ELEMENT, HIGH); //start element
+        #ifdef debug
+          Serial.println("Element on");
+        #endif
       }     
     }
   }
@@ -509,10 +505,12 @@ void fan_and_pellet_management() {
 }
 
 void proc_heating() {
+  //do i want to have an intial hot run ot burn pellet load from start?
   #ifdef pid
     //set fan power and pellets pausse variable via PID lib here
     fanPID.Compute();
     pausePID.Compute();
+    feedPID.Compute();
     #ifdef debug
       Serial.print("Fan power = ");
       Serial.print(power);
@@ -531,7 +529,7 @@ void proc_heating() {
     #endif    
   }
   //dump pellets into flame box with timed auger runs
-  //run the fan. Ideally pwm control based on PID info of temp change but simple for now
+  //run the fan. 
   flame_val = analogRead(LIGHT);
   //If not enough flame start again
   if (flame_val < START_FLAME) {
@@ -789,25 +787,27 @@ void loop() {
      case STATE_OFF:
       proc_off();
       break;
-    }
+  }
   #ifdef debug
     Serial.print("State = ");
     Serial.println(state);
   #endif 
-   if (stringComplete){
+  if (stringComplete){
     inputString = "";
     stringComplete = false;
+  }
   #ifdef mqtt
-    if ((state == STATE_START_UP) or (state == STATE_HEATING) or (state == STATE_HEATING)) { //publish messages
+    if ((state == STATE_START_UP) or (state == STATE_HEATING) or (state == STATE_COOL_DOWN)) { //publish messages
       if (pub_timer == 0) {
         pub_timer = millis(); 
       }
       if (millis() - pub_timer > PUB_INT) {
-        publish(WATER_TEMP_PUB); //publish values, counts up from array to do values
+        publish(WATER_TEMP_PUB);
+        publish(AUGER_TEMP_PUB);
+        publish(FLAME_PUB);
         pub_timer = 0;
       }  
     }
   #endif
-  }
-  delay(200);
+  //delay(200);
 }
