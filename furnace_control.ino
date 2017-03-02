@@ -282,6 +282,9 @@ void serialEvent() {
 void run_fan(int x) {
   if (x == 100) { //no phase angle control needed if you want balls out fan speed
     digitalWrite(GATE,HIGH);
+    #ifdef debug
+      Serial.println("Fan on 100%");
+    #endif
   }else {
     //do magic phase angle stuff here
     /* x is the int as a percentage of fan power
@@ -312,6 +315,9 @@ void stop_fan() {
   //undo phase angle magic here
   detachInterrupt(0);
   digitalWrite(GATE,LOW);
+  #ifdef debug
+    Serial.println("Fan off");
+  #endif  
   TCCR1B = 0x00;
   TIMSK1 = 0x00;    //disable comparator A and overflow interrupts
   TCCR1A = 0x00;    //timer control registers set for
@@ -376,6 +382,9 @@ void proc_start_up() {
   if (millis() - fan_start > START_FAN_TIME) { // either unable to graduate from small flame to large or no flame
     stop_fan();
     digitalWrite(AUGER, HIGH); //dump pellets
+    #ifdef debug
+      Serial.println("Auger on");
+    #endif    
     if (auger_start == 0) {
       auger_start = millis();
       fan_start = 0; //reset fan timer so we can start fanning again
@@ -383,13 +392,22 @@ void proc_start_up() {
     if (millis() - auger_start > START_FEED_TIME) {
       //stop feeding pellets
       digitalWrite(AUGER, LOW);
+      #ifdef debug
+        Serial.println("Auger off");
+      #endif      
       digitalWrite(ELEMENT, HIGH); //start element
+      #ifdef debug
+        Serial.println("Element on");
+      #endif      
       if (element_start == 0) { //start element timer if not already started
         element_start = millis();
       }
       //test to see if element been on for too enough and stop it if it has
       if (millis() - element_start > ELEMENT_TIME) {
         digitalWrite(ELEMENT, LOW);
+        #ifdef debug
+          Serial.println("Element off");
+        #endif        
         if (!small_flame) { //no flame detected, fan puck to see if we can get one
           run_fan(30);
           if (fallback_fan_start == 0) {
@@ -444,12 +462,18 @@ void fan_and_pellet_management() {
   #endif
   if (start_feed_time == 0) {
     digitalWrite(AUGER, HIGH);
+    #ifdef debug
+      Serial.println("Auger on");
+    #endif    
     start_feed_time = millis();
   }
   //test to see if feed been on for long enough
   if (millis() - start_feed_time > feed_time) {
     //stop feeding and start pausing
     digitalWrite(AUGER, LOW);
+    #ifdef debug
+      Serial.println("Auger off");
+    #endif    
     if (start_feed_pause == 0) {
       start_feed_pause = millis();
     }
@@ -499,6 +523,9 @@ void proc_heating() {
   if (water_temp > LOW_TEMP) {
     //start pump
     digitalWrite(PUMP, HIGH);
+    #ifdef debug
+      Serial.println("Pump on");
+    #endif    
     //avoid short cycling so pump for at least 30s
     start_pump_time = millis();
     //kill fan if too hot
@@ -514,6 +541,9 @@ void proc_heating() {
     //check to see we aren't short cycling pump
     if (millis() - start_pump_time > PUMP_TIME) {
       digitalWrite(PUMP, LOW);
+      #ifdef debug
+        Serial.println("Pump off");
+      #endif      
       start_pump_time = 0;
     }
   }
@@ -529,6 +559,9 @@ void proc_cool_down() {
     digitalWrite(ELEMENT, LOW);
     //pump some water to cool it
     digitalWrite(PUMP, HIGH);
+    #ifdef debug
+      Serial.println("Fan, auger and element off, pump on");
+    #endif    
   }
   
   //not too hot but now but could be cooler
@@ -545,6 +578,9 @@ void proc_cool_down() {
       //no heat needed so empty fire box
       //start pump to dump heat
       digitalWrite(PUMP, HIGH);
+      #ifdef debug
+        Serial.println("Pump on");
+      #endif      
       //blow fan until fire is out to empty firebox of pellet load
       run_fan(100);
       if (flame_val < START_FLAME) {
@@ -553,6 +589,9 @@ void proc_cool_down() {
       //Keep pumping heat into house until boiler cool
       if (water_temp < LOW_TEMP){
         digitalWrite(PUMP, LOW);
+        #ifdef debug
+          Serial.println("Pump off");
+        #endif        
       }
       if ((flame_val < START_FLAME) && (water_temp < LOW_TEMP)) {
         state = STATE_IDLE;
@@ -567,10 +606,11 @@ void proc_cool_down() {
 
 void proc_error() {
   #ifdef debug
+    Serial.print("Everything off except pump maybe,  ");
     Serial.println(reason);
   #endif
   //kill heating thigns
-  digitalWrite(FAN, LOW);
+  stop_fan();
   digitalWrite(AUGER, LOW);
   digitalWrite(ELEMENT, LOW);
   //test if boiler too hot, if it is pump some water to cool it
@@ -593,6 +633,9 @@ void proc_off() {
     digitalWrite(PUMP, HIGH);
   }else {
     digitalWrite(PUMP, LOW);
+    #ifdef debug
+      Serial.println("Everythign off");
+    #endif    
   }
   //reset everthing
   start_count = 0;
