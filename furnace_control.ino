@@ -44,12 +44,12 @@ bool elem = false;
 #ifdef mqtt
   unsigned long pub_timer = 0;
   const int PUB_INT = 60000; //publish values every minute
-  const int STATE_PUB = 4;
-  const int WATER_TEMP_PUB = 1;
-  const int AUGER_TEMP_PUB = 2;
-  const int FLAME_PUB = 3;
-  const int ERROR_PUB = 5;
-  int pub = 4;
+  const int STATE_PUB = 3;
+  const int WATER_TEMP_PUB = 0;
+  const int AUGER_TEMP_PUB = 1;
+  const int FLAME_PUB = 2;
+  const int ERROR_PUB = 4;
+  int pub[5] = {WATER_TEMP_PUB, AUGER_TEMP_PUB, FLAME_PUB, STATE_PUB, ERROR_PUB};
   String STATE_TOPIC = "boiler/state";
   String WATER_TEMP_TOPIC = "boiler/temp/water";
   String AUGER_TEMP_TOPIC = "boiler/temp/auger";
@@ -207,10 +207,10 @@ void setup() {
 
 //MQTT stuff
 #ifdef mqtt
-  void publish() {
-    if (pub < 4) {
-      for (pub = 1; pub < 4; pub++) { //publish these based on timer in right state
-        switch (pub) {
+  void publish(int i) {
+    if (i < 3) {
+      for (i = 0; i < 3; i++) { //publish these based on timer in right state
+        switch (pub[i]) {
           case WATER_TEMP_PUB:
             Serial.print("MQTT:");
             Serial.print(WATER_TEMP_TOPIC);
@@ -231,9 +231,9 @@ void setup() {
             break;
         }
       }
-      pub = 0;
-    }else if (pub > 3) { //publish when called in code
-      switch (pub) {
+      i = 0;
+    }else if (i > 3) { //publish when called in code
+      switch (pub[i]) {
         case STATE_PUB:
           Serial.print("MQTT:");
           Serial.print(STATE_TOPIC);
@@ -247,7 +247,7 @@ void setup() {
           Serial.println(reason); 
           break;
       }
-    pub = 0;
+    i = 0;
     }
   }
 #endif
@@ -331,8 +331,8 @@ void proc_idle() {
   if (digitalRead(DZ_PIN) == LOW) {
     state = STATE_START_UP;
     #ifdef mqtt
-      pub = STATE_PUB;
-      publish();
+      //
+      publish(STATE_PUB);
     #endif
   }else {
     //twiddle thumbs
@@ -351,8 +351,8 @@ void going_yet() {
     state = STATE_HEATING;
     dump = true; //set up fpor next start up
     #ifdef mqtt
-      pub = STATE_PUB;
-      publish();
+      //
+      publish(STATE_PUB);
     #endif    
     fan_start = 0;
     element_start = 0;
@@ -376,8 +376,8 @@ void proc_start_up() {
     state = STATE_ERROR;
     reason = "failed to start";
     #ifdef mqtt
-      pub = ERROR_PUB;
-      publish();
+      //
+      publish(ERROR_PUB);
       reason = "";
     #endif    
   }
@@ -445,6 +445,10 @@ void proc_start_up() {
       }     
     }
   }
+  #ifdef debug
+    Serial.print("Start count = ");
+    Serial.println(start_count);
+  #endif   
 }
 
 void fan_and_pellet_management() {
@@ -457,8 +461,8 @@ void fan_and_pellet_management() {
   }else if (water_temp > TOO_HOT_TEMP) {
     state = STATE_COOL_DOWN;
     #ifdef mqtt
-      pub = STATE_PUB;
-      publish();
+      //
+      publish(STATE_PUB);
     #endif    
   }else {
     #ifdef no_PID
@@ -522,8 +526,8 @@ void proc_heating() {
   if (digitalRead(DZ_PIN) == HIGH) {
     state = STATE_COOL_DOWN;
     #ifdef mqtt
-      pub = STATE_PUB;
-      publish();
+      //
+      publish(STATE_PUB);
     #endif    
   }
   //dump pellets into flame box with timed auger runs
@@ -533,8 +537,8 @@ void proc_heating() {
   if (flame_val < START_FLAME) {
     state = STATE_START_UP;
     #ifdef mqtt
-      pub = STATE_PUB;
-      publish();
+      //
+      publish(STATE_PUB);
     #endif    
   }
   fan_and_pellet_management();
@@ -551,8 +555,8 @@ void proc_heating() {
     if (water_temp > TOO_HOT_TEMP) {
       state = STATE_COOL_DOWN;
       #ifdef mqtt
-        pub = STATE_PUB;
-        publish();
+        //
+        publish(STATE_PUB);
       #endif
     }
   }
@@ -589,8 +593,8 @@ void proc_cool_down() {
       //get back to heating
       state = STATE_HEATING;
       #ifdef mqtt
-        pub = STATE_PUB;
-        publish();
+        //
+        publish(STATE_PUB);
       #endif      
     }
     if (digitalRead(DZ_PIN) == HIGH) {
@@ -615,16 +619,16 @@ void proc_cool_down() {
       if ((flame_val < START_FLAME) && (water_temp < LOW_TEMP)) {
         state = STATE_IDLE;
         #ifdef mqtt
-          pub = STATE_PUB;
-          publish();
+          //
+          publish(STATE_PUB);
         #endif        
       }
     }
   }else {
     state = STATE_IDLE;
     #ifdef mqtt
-      pub = STATE_PUB;
-      publish();
+      //
+      publish(STATE_PUB);
     #endif 
   }   
 }
@@ -679,8 +683,8 @@ void proc_off() {
       stringComplete = false;
       state = STATE_IDLE;
       #ifdef mqtt
-        pub = STATE_PUB;
-        publish();
+        //
+        publish(STATE_PUB);
       #endif      
       //delay(10);
     }
@@ -692,8 +696,8 @@ void safety() {
   if (water_temp > TOO_HOT_TEMP) {
     state = STATE_COOL_DOWN;
     #ifdef mqtt
-      pub = STATE_PUB;
-      publish();
+      //
+      publish(STATE_PUB);
     #endif    
   }
   //if auger too hot go into error
@@ -702,8 +706,8 @@ void safety() {
     state = STATE_ERROR;
     reason = "Auger too hot";
     #ifdef mqtt
-      pub = ERROR_PUB;
-      publish();
+      //
+      publish(ERROR_PUB);
       reason = "";
     #endif    
     #ifdef debug
@@ -722,8 +726,8 @@ void loop() {
     if ( state != STATE_IDLE ) {
       state = STATE_COOL_DOWN;
       #ifdef mqtt
-        pub = STATE_PUB;
-        publish();
+        //
+        publish(STATE_PUB);
       #endif      
     } //else do nothing
   }
@@ -736,14 +740,14 @@ void loop() {
       if (state != STATE_OFF) {
         state = STATE_IDLE;
         #ifdef mqtt
-          pub = STATE_PUB;
-          publish();
+          //
+          publish(STATE_PUB);
         #endif        
       }else {
         state = STATE_OFF;
         #ifdef mqtt
-          pub = STATE_PUB;
-          publish();
+          //
+          publish(STATE_PUB);
         #endif        
       }
       debounce_start = 0;
@@ -759,8 +763,8 @@ void loop() {
         stringComplete = false;
         state = STATE_OFF;
         #ifdef mqtt
-          pub = STATE_PUB;
-          publish();
+          //
+          publish(STATE_PUB);
         #endif        
         //delay(10);
       }
@@ -799,7 +803,7 @@ void loop() {
         pub_timer = millis(); 
       }
       if (millis() - pub_timer > PUB_INT) {
-        publish(); //publish values
+        publish(WATER_TEMP_PUB); //publish values, counts up from array to do values
         pub_timer = 0;
       }  
     }
