@@ -38,8 +38,7 @@ const long PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
 const int BUTTON_ON_THRESHOLD = 1500;//1.5s in ms for turning from off to idle and vice versa
 const long FEED_PAUSE = 60000; //60s and calculating a result so might need to be a float
 const long FEED_TIME = 30000;
-bool dump = true;
-bool elem = false;
+
 
 #ifdef mqtt
   unsigned long pub_timer = 0;
@@ -85,6 +84,11 @@ int start_count = 0;
 String reason = "";
 bool feeding = true;
 bool run_fan = false;
+bool cooling = false;
+bool dump = true;
+bool elem = false;
+bool first_loop = true; //first off loop
+
 //I expect that code will alter these values in future
 unsigned long start_feed_time = 0;
 unsigned long start_feed_pause = 0;
@@ -329,6 +333,9 @@ void proc_idle() {
   }else {
     //twiddle thumbs
   }
+  if (cooling) { //reset cooling variable
+  // false;
+  }
 }
 
 void going_yet() {
@@ -471,7 +478,7 @@ void fan_and_pellet_management() {
 
   /**************************************************
    * PELLETS MANAGMENT
-   * pid managment of pause between feeding
+   * pid managment of pause between feeding and feed time
    **************************************************/
   #ifdef pid
     feed_pause = (feed_pause_percent / 100) * FEED_PAUSE; //caluclate actual pause from PID derived value
@@ -502,11 +509,32 @@ void fan_and_pellet_management() {
     }
   } 
   if (!feeding) { 
+    if (start_feed_pause == 0 ) {
+      start_feed_pause = millis();
+    }
     if (millis() - start_feed_pause > (int)feed_pause) {
       //stop pausing, start feeding
       start_feed_time = 0;
       start_feed_pause = 0;
       feeding = true;
+    }
+  }
+}
+
+void pump(bool on) { //prevents short cycling of pump
+  if (on) {
+    digitalWrite(PUMP, HIGH);
+    if (start_pump_time == 0) {    //avoid short cycling so pump for at least 30s
+      start_pump_time = millis();
+    }
+  }
+  if (!on) {
+    if (millis() - start_pump_time > PUMP_TIME) {
+      digitalWrite(PUMP, LOW);
+      #ifdef debug
+        Serial.println("Pump off");
+      #endif      
+      start_pump_time = 0;
     }
   }
 }
@@ -522,7 +550,10 @@ void proc_heating() {
       Serial.print("Fan power = ");
       Serial.print(power);
       Serial.print("%");
-      Serial.print("Pellets pause = ");
+      Serial.print("  Feed time = ");
+      Serial.print(feed_percent);
+      Serial.print("%");
+      Serial.print("  Pellets pause = ");
       Serial.print(feed_pause_percent);
       Serial.println("%");
     #endif
@@ -550,12 +581,10 @@ void proc_heating() {
   //pump water when it is in the bands
   if (water_temp > LOW_TEMP) {
     //start pump
-    digitalWrite(PUMP, HIGH);
+    pump(true);
     #ifdef debug
       Serial.println("Pump on");
     #endif    
-    //avoid short cycling so pump for at least 30s
-    start_pump_time = millis();
     //kill fan if too hot
     if (water_temp > TOO_HOT_TEMP) {
       state = STATE_COOL_DOWN;
@@ -566,34 +595,67 @@ void proc_heating() {
     }
   }
   if (water_temp < LOW_TEMP) {
-    //check to see we aren't short cycling pump
-    if (millis() - start_pump_time > PUMP_TIME) {
-      digitalWrite(PUMP, LOW);
-      #ifdef debug
-        Serial.println("Pump off");
-      #endif      
-      start_pump_time = 0;
-    }
+    pump(false);
   }
+}
+
+void cool_to_stop(int target_state) {
+  #ifdef debug
+    Serial.println("Cooling down as all off");
+  #endif 
+  //start pump to dump heat
+  pump(true);
+  #ifdef debug
+    Serial.println("Pump on");
+  #endif      
+  //Keep pumping heat into house until boiler cool
+  if (water_temp < LOW_TEMP){
+    pump(false);
+    #ifdef debug
+      Serial.println("Pump off");
+    #endif        
+  }
+  if ((flame_val < START_FLAME) && (water_temp < LOW_TEMP)) {
+    if (target_state = STATE_OFF) {
+      first_loop = true;
+    }
+    state = target_state;
+    #ifdef mqtt
+      //
+      publish(STATE_PUB);
+    #endif        
+  }
+      
 }
 
 
 void proc_cool_down() {
+  /*order goes like this:
+   * 1. Too hot? -> pump to get below mid range and check dz pin
+   * 2. DZ pin LOW (heating) -> STATE_HEATING
+   * 3. DZ pin HIGH (off) -> keep pumping/blowing until firebox empty and cooled boiler
+   */
   flame_val = analogRead(LIGHT);
-  //kill heating thigns if too hot and keep checking to see what state needed
   if (water_temp > TOO_HOT_TEMP) {
     stop_fan();
     digitalWrite(AUGER, LOW);
     digitalWrite(ELEMENT, LOW);
     //pump some water to cool it
-    digitalWrite(PUMP, HIGH);
+    pump(true);
     #ifdef debug
-      Serial.println("Fan, auger and element off, pump on");
+      Serial.println("Fan, auger and element off, pump on TOO HOT");
     #endif    
+  }else {
+    pump(true);
+    //blow fan until fire is out to empty firebox of pellet load
+    if (flame_val < START_FLAME) {
+      stop_fan();
+    }else {
+      run_fan(100);
+    }
   }
-  
   //not too hot but now but could be cooler
-  if ((water_temp < HIGH_TEMP) && (water_temp > MID_TEMP)) {
+  if (water_temp < MID_TEMP) {
     if (digitalRead(DZ_PIN) == LOW) {
       //get back to heating
       state = STATE_HEATING;
@@ -601,41 +663,15 @@ void proc_cool_down() {
         //
         publish(STATE_PUB);
       #endif      
+      if (cooling) { //reset cooling variable
+      // false;
+      }
     }
     if (digitalRead(DZ_PIN) == HIGH) {
       //no heat needed so empty fire box
-      //start pump to dump heat
-      digitalWrite(PUMP, HIGH);
-      #ifdef debug
-        Serial.println("Pump on");
-      #endif      
-      //blow fan until fire is out to empty firebox of pellet load
-      run_fan(100);
-      if (flame_val < START_FLAME) {
-        stop_fan();
-      }
-      //Keep pumping heat into house until boiler cool
-      if (water_temp < LOW_TEMP){
-        digitalWrite(PUMP, LOW);
-        #ifdef debug
-          Serial.println("Pump off");
-        #endif        
-      }
-      if ((flame_val < START_FLAME) && (water_temp < LOW_TEMP)) {
-        state = STATE_IDLE;
-        #ifdef mqtt
-          //
-          publish(STATE_PUB);
-        #endif        
-      }
+      cool_to_stop(STATE_IDLE);
     }
-  }else {
-    state = STATE_IDLE;
-    #ifdef mqtt
-      //
-      publish(STATE_PUB);
-    #endif 
-  }   
+  }  
 }
 
 void proc_error() {
@@ -651,35 +687,29 @@ void proc_error() {
   water_temp = int(Thermistor(analogRead(WATER_TEMP)));
   if (water_temp > MID_TEMP) {
     //start pump
-    digitalWrite(PUMP, HIGH);
+    pump(true);
   }else {
-    digitalWrite(PUMP, LOW);
+    pump(false);
   }
 }
 
 void proc_off() {
-  //settle arduino down:
-  stop_fan();
   //if too hot pump unitl not:
-  water_temp = int(Thermistor(analogRead(WATER_TEMP)));
-  if (water_temp > HIGH_TEMP) {
-    //start pump
-    digitalWrite(PUMP, HIGH);
-  }else {
-    digitalWrite(PUMP, LOW);
-    #ifdef debug
-      Serial.println("Everythign off");
-    #endif    
+  if (water_temp > LOW_TEMP) {
+    cool_to_stop(STATE_OFF);    
+  }else if (first_loop) { //turn everthing off once
+    start_count = 0;
+    start_feed_time = 0;
+    start_feed_pause = 0;
+    start_pump_time = 0;
+    debounce_start = 0;
+    reason = "";
+    stop_fan();
+    digitalWrite(AUGER, LOW);
+    digitalWrite(ELEMENT, LOW);
+    pump(false);
+    first_loop = false;
   }
-  //reset everthing
-  start_count = 0;
-  feed_time = 5000; //5s in ms
-  feed_pause = 20000; //20s in ms
-  start_feed_time = 0;
-  start_feed_pause = 0;
-  start_pump_time = 0;
-  debounce_start = 0;
-  reason = "";
   //turn on if serial comms received
   if (stringComplete) {
     if (inputString.startsWith("Turn On Boiler")) {
@@ -749,6 +779,7 @@ void loop() {
         #endif        
       }else {
         state = STATE_OFF;
+        first_loop = true;
         #ifdef mqtt
           //
           publish(STATE_PUB);
@@ -766,6 +797,7 @@ void loop() {
         inputString = "";
         stringComplete = false;
         state = STATE_OFF;
+        first_loop = true;
         #ifdef mqtt
           //
           publish(STATE_PUB);
