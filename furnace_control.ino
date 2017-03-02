@@ -83,6 +83,7 @@ int flame_val; // range from 0 to 1024 ( i think)
 int state;
 int start_count = 0;
 String reason = "";
+bool feeding = true;
 //I expect that code will alter these values in future
 unsigned long start_feed_time = 0;
 unsigned long start_feed_pause = 0;
@@ -382,8 +383,9 @@ void proc_start_up() {
       stop_fan();
       start_count++;
       fan_start = 0;
+    }else {
+      run_fan(40);
     } 
-    run_fan(40);
   }
   if (start_count > 0) {
     if (dump) {
@@ -478,27 +480,32 @@ void fan_and_pellet_management() {
     feed_time = FEED_TIME;
     feed_pause = FEED_PAUSE;
   #endif
-  if (start_feed_time == 0) {
-    digitalWrite(AUGER, HIGH);
-    #ifdef debug
-      Serial.println("Auger on");
-    #endif    
-    start_feed_time = millis();
-  }
-  //test to see if feed been on for long enough
-  if (millis() - start_feed_time > feed_time) {
-    //stop feeding and start pausing
-    digitalWrite(AUGER, LOW);
-    #ifdef debug
-      Serial.println("Auger off");
-    #endif    
-    if (start_feed_pause == 0) {
-      start_feed_pause = millis();
+  if (feeding) {
+    if (start_feed_time == 0) {
+      start_feed_time = millis();
     }
+    //test to see if feed been on for long enough
+    if (millis() - start_feed_time > feed_time) {
+      //stop feeding and start pausing
+      feeding = false;
+      start_feed_pause = millis();
+      digitalWrite(AUGER, LOW);
+      #ifdef debug
+        Serial.println("Auger off");
+      #endif
+    }else {
+      digitalWrite(AUGER, HIGH);
+      #ifdef debug
+        Serial.println("Auger on");
+      #endif 
+    }
+  } 
+  if (!feeding) { 
     if (millis() - start_feed_pause > (int)feed_pause) {
       //stop pausing, start feeding
       start_feed_time = 0;
       start_feed_pause = 0;
+      feeding = true;
     }
   }
 }
