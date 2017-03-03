@@ -26,8 +26,8 @@
 // 16 microseconds.  1/2 wave of a 60Hz AC signal
 // is about 520 counts (8,333 microseconds).
 
-//#define test
-#define fan
+#define test
+//#define fan
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -75,7 +75,7 @@ void setup(){
 void zeroCrossingInterrupt(){ //zero cross detect   
   TCCR1B=0x04; //start timer with divide by 256 input
   TCNT1 = 0;   //reset timer - count from zero
-  //crosses++;
+  crosses++;
 }
 
 
@@ -118,11 +118,11 @@ void run_fan(int x) {
     //a value of 65 gives close to full power (overflow counter triggered early in wave turing triac on
     //a value of 480 gives close to fuck all power (don't want to be too close to zero cross 
     // when turning optocoupler off or latch will spill over to next half wave leaving it on
-    if ( on_wait < 65) {
-      OCR1A = 65;
+    if ( on_wait < 104) {
+      OCR1A = 104;
     }
-    if ( on_wait > 480) {
-      OCR1A = 480;
+    if ( on_wait > 364) {
+      OCR1A = 364;
     }else {
       OCR1A = on_wait;
     }

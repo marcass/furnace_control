@@ -3,22 +3,23 @@
 /*******************************
  BOILER CONTROL
  *******************************/
-//#define debug
+#define debug
 #define pid //use if PID controlling fan output
 //#define no_PID //use if not pid controlling
 //#define mqtt
 #define ac_counter
 //#define lcd //interferes with interrupts?
+//#define fan
 
 
 //Libraries
-#include <Wire.h>
-#ifdef lcd
-  //https://bitbucket.org/fmalpartida/new-liquidcrystal/wiki/Home
-  #include <LiquidCrystal_I2C.h>
-  LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I2C address
-//need to set contrast and backlight and check pin assignments
-#endif
+//#include <Wire.h>
+//#ifdef lcd
+//  //https://bitbucket.org/fmalpartida/new-liquidcrystal/wiki/Home
+//  #include <LiquidCrystal_I2C.h>
+//  LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I2C address
+////need to set contrast and backlight and check pin assignments
+//#endif
 //PID library
 #include <math.h>
 #include <PID_v1.h>
@@ -132,7 +133,7 @@ boolean stringComplete = false;  // whether the string is complete
 
 
 //Outputs
-const int PUMP = 2; //circ pump relay
+const int PUMP = 7; //circ pump relay
 const int FAN = 9; //fan relay. pin9 is a PWM pin and allows for analogWrite
 const int AUGER = 3; //pellet auger relay
 const int ELEMENT = 4; //fire starting element relay
@@ -143,9 +144,9 @@ const int AUGER_TEMP = 6; //analogue pin 6
 const int LIGHT = 2; //analogue pin 2 for flame detection
 const int DZ_PIN = 5; // pin that is pulled up when 1-wire relay closes
 const int DZ_SUPPLY = 6; //Need a pin to supply 5v that is passed to DZ_PIN when 1-wire relay closes
-const int DETECT = 2; //ac detection pin
-const int GATE = 9; //pwm pin
-const int PULSE = 4;   //trigger pulse width (counts) that triac requires to fire one specified needs ~25mus
+#define DETECT 2 //ac detection pin
+#define GATE 9 //pwm pin
+#define PULSE 4   //trigger pulse width (counts) that triac requires to fire one specified needs ~25mus
 
 //Analogue reading maths for temp
 double Thermistor(int RawADC) {
@@ -162,9 +163,9 @@ double Thermistor(int RawADC) {
 void setup() {
   //intitialise output pins (inputs are all analogue read pins)
   pinMode(DETECT, INPUT);     //zero cross detect
-  digitalWrite(DETECT, HIGH);
+  digitalWrite(DETECT, HIGH); //enable pull-up resistor
   pinMode(GATE, OUTPUT);      //TRIAC gate control
-  digitalWrite(DETECT, LOW);
+  digitalWrite(GATE, LOW);
   pinMode(PUMP, OUTPUT);
   digitalWrite(PUMP, LOW);
   pinMode(FAN, OUTPUT);
@@ -194,17 +195,19 @@ void setup() {
     pausePID.SetMode(AUTOMATIC);
     feedPID.SetMode(AUTOMATIC);
   #endif
-
-  //set up timer1 for ac detection
+  // set up Timer1 
   //(see ATMEGA 328 data sheet pg 134 for more details)
   OCR1A = 100;      //initialize the comparator
-  TIMSK1 = 0x03;    //enable comparator A and overflow interrupts - done in run_fan()
+  TIMSK1 = 0x03;    //enable comparator A and overflow interrupts
   TCCR1A = 0x00;    //timer control registers set for
   TCCR1B = 0x00;    //normal operation, timer disabled
+
+
   // set up zero crossing interrupt
-  attachInterrupt(0,zeroCrossingInterrupt, RISING);    //Do this in run_fan()
+  attachInterrupt(0,zeroCrossingInterrupt, RISING);    
     //IRQ0 is pin 2. Call zeroCrossingInterrupt 
-    //on rising signal 
+    //on rising signal
+  
   // initialize serial communication:
   Serial.begin(115200);
   inputString.reserve(200); // reserve mem for received message on serial port 
@@ -221,12 +224,6 @@ void setup() {
 //MQTT stuff
 #ifdef mqtt
   void publish(int i) {
-//    #ifdef debug
-//      Serial.print("i = ");
-//      Serial.print(i);
-//      Serial.print("pub = ");
-//      Serial.println(pub[i]);
-//    #endif
     if ( i == WATER_TEMP_PUB) {
       Serial.print("MQTT:");
       Serial.print(WATER_TEMP_TOPIC);
@@ -258,11 +255,14 @@ void setup() {
 
 
 //Interrupt Service Routines
+
 void zeroCrossingInterrupt(){ //zero cross detect   
   TCCR1B=0x04; //start timer with divide by 256 input
   TCNT1 = 0;   //reset timer - count from zero
   crosses++;
 }
+
+
 
 ISR(TIMER1_COMPA_vect){ //comparator match
   digitalWrite(GATE,HIGH);  //set TRIAC gate to high
@@ -273,6 +273,7 @@ ISR(TIMER1_OVF_vect){ //timer1 overflow
   digitalWrite(GATE,LOW); //turn off TRIAC gate
   TCCR1B = 0x00;          //disable timer stopd unintended triggers
 }
+
 
 //setup serial receive
 void serialEvent() {
@@ -304,7 +305,9 @@ void run_fan(int x) {
      */
     TIMSK1 = 0x03;    //enable comparator A and overflow interrupts
     //set up interrupt
-    attachInterrupt(0,zeroCrossingInterrupt, RISING);  // inturrupt 0 on digital pin 2
+    
+    //attachInterrupt(0,zeroCrossingInterrupt, RISING);  // inturrupt 0 on digital pin 2
+    
     //set a value that is a proportion of 520 for power
     divisor = (float)x / 100;
     proportion = divisor * 520;
