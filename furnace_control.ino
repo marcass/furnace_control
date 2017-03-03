@@ -43,6 +43,7 @@ const int BUTTON_ON_THRESHOLD = 1500;//1.5s in ms for turning from off to idle a
 const long FEED_PAUSE = 60000; //60s and calculating a result so might need to be a float
 const long FEED_TIME = 30000;
 const long STATE_CHANGE_THRES = 30000;
+const long STOP_THRESH = 5000; //for  fan short cycling
 
 
 #ifdef mqtt
@@ -103,6 +104,7 @@ float divisor;
 int crosses;
 int counts;
 unsigned long state_trans_start = 0;
+unsigned long stop_start = 0; //for  fan short cycling
 
 //I expect that code will alter these values in future
 unsigned long start_feed_time = 0;
@@ -110,8 +112,8 @@ unsigned long start_feed_pause = 0;
 unsigned long start_pump_time = 0;
 unsigned long debounce_start = 0;
 int on_wait; //variable for converting power to timer value
-int feed_pause;
-int feed_time;
+long feed_pause;
+long feed_time;
 
 #ifdef pid
   //PID setup
@@ -340,16 +342,21 @@ void run_fan(int x) {
 }
 
 void stop_fan() {
-  //undo phase angle magic here
-  //detachInterrupt(0);
-  digitalWrite(GATE,LOW);
-  #ifdef debug
-    Serial.print("  Fan off  ");
-  #endif  
-  TCCR1B = 0x00;
-  TIMSK1 = 0x00;    //disable comparator A and overflow interrupts
-  TCCR1A = 0x00;    //timer control registers set for
-  TCCR1B = 0x00;    //normal operation, timer disabled
+  if (stop_start == 0) { //dont' short cycle fan
+    stop_start = millis();
+  }
+  if (millis() - stop_start > STOP_THRESH) {
+    digitalWrite(GATE,LOW);
+    #ifdef debug
+      Serial.print("  Fan off  ");
+    #endif 
+    //undo phase angle magic here 
+    TCCR1B = 0x00;
+    TIMSK1 = 0x00;    //disable comparator A and overflow interrupts
+    TCCR1A = 0x00;    //timer control registers set for
+    TCCR1B = 0x00;    //normal operation, timer disabled
+    stop_start = 0;
+  }
 }
 
 void proc_idle() {
@@ -407,7 +414,7 @@ void going_yet() {
       start_count++;
       fan_start = 0;
     }else {
-      //nothing happening, go back to doing what you were
+      state_trans_start = 0; //not enough flame for state trans so reset timer
     }
   }
 }
@@ -433,6 +440,8 @@ void proc_start_up() {
   #endif
   if (runFan) {
     run_fan(39);
+  }else {
+    stop_fan(); //fucking fan keeps turning on
   }
   going_yet(); //perform check in each loop
   //start fan on count 1 of each start up to see if flames present
@@ -443,7 +452,6 @@ void proc_start_up() {
     }
     if (millis() - fan_start > START_FAN_TIME) {
       runFan = false;
-      stop_fan();
       start_count++;
       dump = true;
       fan_start = 0;
@@ -466,7 +474,6 @@ void proc_start_up() {
       }else {
         digitalWrite(AUGER, HIGH); //dump pellets
         runFan = false;
-        stop_fan();
         digitalWrite(ELEMENT, LOW);
         #ifdef debug
           Serial.print(" Auger on ");
@@ -489,7 +496,6 @@ void proc_start_up() {
         } //loop back to see if going for a bit
         if (millis() - fallback_fan_start > START_FAN_TIME) { //no flame made - hopeless so start again
           runFan = false;
-          stop_fan();
           fallback_fan_start = 0;
           //go back to start and dump another load
           auger_start = 0;
@@ -501,7 +507,6 @@ void proc_start_up() {
       }else {
         digitalWrite(ELEMENT, HIGH); //start element
         runFan = false;
-        stop_fan();
         digitalWrite(AUGER, LOW);
         #ifdef debug
           Serial.print("  Element on  ");
@@ -552,7 +557,7 @@ void fan_and_pellet_management() {
       start_feed_time = millis();
     }
     //test to see if feed been on for long enough
-    if (millis() - start_feed_time > (long)feed_time) {
+    if (millis() - start_feed_time > feed_time) {
       //stop feeding and start pausing
       feeding = false;
       start_feed_time = 0;
@@ -572,7 +577,7 @@ void fan_and_pellet_management() {
     if (start_feed_pause == 0 ) {
       start_feed_pause = millis();
     }
-    if (millis() - start_feed_pause > (long)feed_pause) {
+    if (millis() - start_feed_pause > feed_pause) {
       //stop pausing, start feeding
       
       start_feed_pause = 0;
@@ -581,11 +586,11 @@ void fan_and_pellet_management() {
   }
   #ifdef debug
     Serial.print(" Time left to feed = ");
-    Serial.print((long)feed_time - (millis()-start_feed_time));
-//    Serial.print("  Time left in pause = ");
-//    Serial.print((long)feed_pause - (millis()-start_feed_pause));
-      Serial.print("  Feed pause percent = ");
-      Serial.print(feed_pause_percent);
+    Serial.print(feed_time - (millis()-start_feed_time));
+    Serial.print("  Time left in pause = ");
+    Serial.println(feed_pause - (millis()-start_feed_pause));
+//      Serial.print("  Feed pause percent = ");
+//      Serial.print(feed_pause_percent);
   #endif
     
 }
@@ -639,7 +644,7 @@ void proc_heating() {
   //run the fan. 
   flame_val = analogRead(LIGHT);
   //If not enough flame start again
-  if (flame_val < START_FLAME) {
+  if (flame_val < FLAME_VAL_THRESHOLD) {
     if (state_trans_start == 0) { //smooth state transitions
       state_trans_start = millis();
     }
@@ -651,7 +656,9 @@ void proc_heating() {
         publish(STATE_PUB);
       #endif    
       state_trans_start = 0;
-    } //else keep coming back to check
+    }else {//else keep coming back to check
+      state_trans_start = 0; //enough flame for to remain in state so reset timer
+    }
   }
   fan_and_pellet_management();
   //pump water when it is in the bands

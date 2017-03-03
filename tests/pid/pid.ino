@@ -9,8 +9,14 @@ double TEMP_SET_POINT = 50; //PID SETPOINT
 double power; //variable for percentage power we want fan to run at works from 30 (min) to 80 (max)
 double water_temp;
 double feed_pause_percent;
-double FEED_SET_POINT = 20000; //20s in ms
-int feed_pause = 2000;
+double feed_percent;
+long feed_pause = 2000;
+long feed_time;
+long start_feed_time;
+long start_feed_pause;
+const long FEED_PAUSE = 60000;
+const long FEED_TIME = 30000;
+bool feeding = true;
 
 //Specify the links and initial tuning parameters
 //PID fanPID(&Input, &Output, &Setpoint,2,5,1, DIRECT);
@@ -18,6 +24,7 @@ int feed_pause = 2000;
 //PID pelletsPID(&water_temp, &feed_pause_percent, &TEMP_SET_POINT,2,5,1, REVERSE); //need shorter feed time to get to hotter so REVERSE
 PID fanPID(&water_temp, &power, &TEMP_SET_POINT,0.1,1,1, DIRECT); //need more fan power to get hotter so DIRECT
 PID pelletsPID(&water_temp, &feed_pause_percent, &TEMP_SET_POINT,0.1,1,1, REVERSE); //need shorter feed time to get to hotter so REVERSE
+PID feedPID(&water_temp, &feed_percent, &TEMP_SET_POINT,2,5,1, DIRECT);
 
 //Inputs
 const int WATER_TEMP = 1; //analogue pin 3
@@ -51,7 +58,36 @@ void loop() {
   water_temp = int(Thermistor(analogRead(WATER_TEMP)));
   fanPID.Compute();
   pelletsPID.Compute();
+  feedPID.Compute();
   feed_pause = (feed_pause_percent / 100) * 20000; //caluclate actual pause from PID derived value
+  feed_time =  (feed_percent / 100)       * FEED_TIME;
+  
+  feed_pause = (feed_pause_percent / 100) * FEED_PAUSE; //caluclate actual pause from PID derived value
+  feed_time =  (feed_percent / 100)       * FEED_TIME;
+  
+  if (feeding) {
+    if (start_feed_time == 0) {
+      start_feed_time = millis();
+    }
+    //test to see if feed been on for long enough
+    if (millis() - start_feed_time > (long)feed_time) {
+      //stop feeding and start pausing
+      feeding = false;
+      start_feed_time = 0;
+      //start_feed_pause = millis();
+    }
+  } 
+  if (!feeding) { 
+    if (start_feed_pause == 0 ) {
+      start_feed_pause = millis();
+    }
+    if (millis() - start_feed_pause > (long)feed_pause) {
+      //stop pausing, start feeding
+      
+      start_feed_pause = 0;
+      feeding = true;
+    }
+  }
   
   Serial.print("Temp = ");
   Serial.print((int)water_temp);
@@ -63,5 +99,16 @@ void loop() {
   Serial.print("%");
   Serial.print("  Pellets feed pause time = ");
   Serial.print((int)feed_pause);
-  Serial.println("ms");
+  Serial.print("ms");
+  Serial.print(feed_percent);
+  Serial.print("%");
+  Serial.print("  Pellets feed time = ");
+  Serial.print((int)feed_time);
+  Serial.print("ms");
+  Serial.print(" Time left to feed = ");
+  Serial.print((long)feed_time - (millis()-start_feed_time));
+  Serial.print("  Time left in pause = ");
+  Serial.println((long)feed_pause - (millis()-start_feed_pause));
+  delay(200);
+
 }
