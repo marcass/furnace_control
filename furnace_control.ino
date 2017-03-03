@@ -8,21 +8,23 @@
 //#define no_PID //use if not pid controlling
 //#define mqtt
 #define ac_counter
+//#define lcd //interferes with interrupts?
 
 
 //Libraries
 #include <Wire.h>
-//https://bitbucket.org/fmalpartida/new-liquidcrystal/wiki/Home
-#include <LiquidCrystal_I2C.h>
+#ifdef lcd
+  //https://bitbucket.org/fmalpartida/new-liquidcrystal/wiki/Home
+  #include <LiquidCrystal_I2C.h>
+  LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I2C address
+//need to set contrast and backlight and check pin assignments
+#endif
 //PID library
 #include <math.h>
 #include <PID_v1.h>
 //for ac phase angle stuff
 #include <avr/io.h>
 #include <avr/interrupt.h>
-
-LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I2C address
-//need to set contrast and backlight and check pin assignments
 
 //Constants
 const long ELEMENT_TIME = 360000; //6min in ms
