@@ -42,6 +42,7 @@ const long PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
 const int BUTTON_ON_THRESHOLD = 1500;//1.5s in ms for turning from off to idle and vice versa
 const long FEED_PAUSE = 60000; //60s and calculating a result so might need to be a float
 const long FEED_TIME = 30000;
+const long STATE_CHANGE_THRES = 30000;
 
 
 #ifdef mqtt
@@ -101,6 +102,7 @@ int proportion;
 float divisor;
 int crosses;
 int counts;
+unsigned long state_trans_start = 0;
 
 //I expect that code will alter these values in future
 unsigned long start_feed_time = 0;
@@ -376,16 +378,23 @@ void going_yet() {
   //read light in firebox
   flame_val = analogRead(LIGHT);
   if (flame_val > FLAME_VAL_THRESHOLD) { //if plenty of light go to heating
-    state = STATE_HEATING;
-    #ifdef mqtt
-      //
-      publish(STATE_PUB);
-    #endif    
-    fan_start = 0;
-    element_start = 0;
-    auger_start = 0;
-    reset = true; //watch for timer to reset start count
-    reset_start_count_timer = millis();
+    if (state_trans_start == 0) { //smooth state transitions
+      state_trans_start = millis();
+    }
+    if (millis() - state_trans_start > STATE_CHANGE_THRES) {
+      
+      state = STATE_HEATING;
+      #ifdef mqtt
+        //
+        publish(STATE_PUB);
+      #endif    
+      fan_start = 0;
+      element_start = 0;
+      auger_start = 0;
+      reset = true; //watch for timer to reset start count
+      reset_start_count_timer = millis();
+      state_trans_start = 0;
+    } //else keep coming back to check
   }else if (flame_val > START_FLAME) { //a little bit of light so lets gently blow and see if flame_val_threshold breached
     runFan = true; //run fan at 40%
     dump = false;
@@ -418,8 +427,8 @@ void proc_start_up() {
   #ifdef debug
     Serial.print("runFan = ");
     Serial.print(runFan);
-    Serial.print("  Dump =   ");
-    Serial.print(dump);
+//    Serial.print("  Dump =   ");
+//    Serial.print(dump);
     Serial.print("  ");
   #endif
   if (runFan) {
@@ -532,7 +541,7 @@ void fan_and_pellet_management() {
    **************************************************/
   #ifdef pid
     feed_pause = (feed_pause_percent / 100) * FEED_PAUSE; //caluclate actual pause from PID derived value
-    feed_time = (feed_percent / 100) * FEED_TIME;
+    feed_time =  (feed_percent / 100)       * FEED_TIME;
   #endif
   #ifdef no_PID //won't be changing so set to const int value
     feed_time = FEED_TIME;
@@ -575,8 +584,8 @@ void fan_and_pellet_management() {
     Serial.print((long)feed_time - (millis()-start_feed_time));
 //    Serial.print("  Time left in pause = ");
 //    Serial.print((long)feed_pause - (millis()-start_feed_pause));
-      Serial.print("  Feed pause = ");
-      Serial.print(feed_pause);
+      Serial.print("  Feed pause percent = ");
+      Serial.print(feed_pause_percent);
   #endif
     
 }
@@ -631,12 +640,18 @@ void proc_heating() {
   flame_val = analogRead(LIGHT);
   //If not enough flame start again
   if (flame_val < START_FLAME) {
-    state = STATE_START_UP;
-    runFan = true;
-    #ifdef mqtt
-      //
-      publish(STATE_PUB);
-    #endif    
+    if (state_trans_start == 0) { //smooth state transitions
+      state_trans_start = millis();
+    }
+    if (millis() - state_trans_start > STATE_CHANGE_THRES) {
+      state = STATE_START_UP;
+      runFan = true;
+      #ifdef mqtt
+        //
+        publish(STATE_PUB);
+      #endif    
+      state_trans_start = 0;
+    } //else keep coming back to check
   }
   fan_and_pellet_management();
   //pump water when it is in the bands
