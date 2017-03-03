@@ -83,11 +83,11 @@ int state;
 int start_count = 0;
 String reason = "";
 bool feeding = true;
-bool run_fan = false;
 bool cooling = false;
 bool dump = true;
 bool elem = false;
 bool first_loop = true; //first off loop
+bool runFan;
 
 //I expect that code will alter these values in future
 unsigned long start_feed_time = 0;
@@ -326,6 +326,7 @@ void proc_idle() {
   //1-wire relay gets closed by DZ3
   if (digitalRead(DZ_PIN) == LOW) {
     state = STATE_START_UP;
+    runFan = true;
     #ifdef mqtt
       //
       publish(STATE_PUB);
@@ -379,18 +380,18 @@ void proc_start_up() {
     #endif    
   }
   //run fan if true
-  if (run_fan) {
+  if (runFan) {
     run_fan(40);
   }
   going_yet(); //perform check in each loop
   //start fan on count 1 of each start up to see if flames present
   if (start_count == 0) {
-    run_fan = true;
+    runFan = true;
     if (fan_start == 0) {
       fan_start = millis();
     }
     if (millis() - fan_start > START_FAN_TIME) {
-      run_fan = false;
+      runFan = false;
       stop_fan();
       start_count++;
       fan_start = 0;
@@ -427,12 +428,12 @@ void proc_start_up() {
         #ifdef debug
           Serial.println("Element on long enough so turned off");
         #endif        
-        run_fan = true;//fan puck for a while to see if picked up in going yet
+        runFan = true;//fan puck for a while to see if picked up in going yet
         if (fallback_fan_start == 0) {
           fallback_fan_start = millis();
         } //loop back to see if going for a bit
         if (millis() - fallback_fan_start > START_FAN_TIME) { //no flame made - hopeless so start again
-          run_fan = false;
+          runFan = false;
           stop_fan();
           fallback_fan_start = 0;
           //go back to start and dump another load
@@ -572,6 +573,7 @@ void proc_heating() {
   //If not enough flame start again
   if (flame_val < START_FLAME) {
     state = STATE_START_UP;
+    runFan = true;
     #ifdef mqtt
       //
       publish(STATE_PUB);
@@ -615,6 +617,12 @@ void cool_to_stop(int target_state) {
       Serial.println("Pump off");
     #endif        
   }
+  //keep fannng until no light
+  if (flame_val < START_FLAME) {
+    stop_fan();
+  }else {
+    run_fan(100);
+  }
   if ((flame_val < START_FLAME) && (water_temp < LOW_TEMP)) {
     if (target_state = STATE_OFF) {
       first_loop = true;
@@ -636,7 +644,7 @@ void proc_cool_down() {
    * 3. DZ pin HIGH (off) -> keep pumping/blowing until firebox empty and cooled boiler
    */
   flame_val = analogRead(LIGHT);
-  if (water_temp > TOO_HOT_TEMP) {
+  if (water_temp > HIGH_TEMP) {
     stop_fan();
     digitalWrite(AUGER, LOW);
     digitalWrite(ELEMENT, LOW);
@@ -645,7 +653,7 @@ void proc_cool_down() {
     #ifdef debug
       Serial.println("Fan, auger and element off, pump on TOO HOT");
     #endif    
-  }else {
+  }else if (water_temp > MID_TEMP) {
     pump(true);
     //blow fan until fire is out to empty firebox of pellet load
     if (flame_val < START_FLAME) {
@@ -663,9 +671,6 @@ void proc_cool_down() {
         //
         publish(STATE_PUB);
       #endif      
-      if (cooling) { //reset cooling variable
-      // false;
-      }
     }
     if (digitalRead(DZ_PIN) == HIGH) {
       //no heat needed so empty fire box
