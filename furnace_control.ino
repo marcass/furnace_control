@@ -3,10 +3,11 @@
 /*******************************
  BOILER CONTROL
  *******************************/
-#define debug
+//#define debug
 #define pid //use if PID controlling fan output
 //#define no_PID //use if not pid controlling
-#define mqtt
+//#define mqtt
+#define ac_counter
 
 
 //Libraries
@@ -88,6 +89,10 @@ bool dump = true;
 bool elem = false;
 bool first_loop = true; //first off loop
 bool runFan;
+int proportion;
+float divisor;
+int crosses;
+int counts;
 
 //I expect that code will alter these values in future
 unsigned long start_feed_time = 0;
@@ -157,6 +162,7 @@ void setup() {
   pinMode(DETECT, INPUT);     //zero cross detect
   digitalWrite(DETECT, HIGH);
   pinMode(GATE, OUTPUT);      //TRIAC gate control
+  digitalWrite(DETECT, LOW);
   pinMode(PUMP, OUTPUT);
   digitalWrite(PUMP, LOW);
   pinMode(FAN, OUTPUT);
@@ -173,9 +179,6 @@ void setup() {
   pinMode(BUTTON_2, INPUT_PULLUP);
   pinMode(BUTTON_3, INPUT_PULLUP);
   pinMode(BUTTON_4, INPUT_PULLUP);
-  // initialize serial communication:
-  Serial.begin(115200);
-  inputString.reserve(200); // reserve mem for received message on serial port
   #ifdef pid
     //initialize the PID variables we're linked to
     fanPID.SetOutputLimits(55, 80); //percentage of fan power
@@ -193,13 +196,16 @@ void setup() {
   //set up timer1 for ac detection
   //(see ATMEGA 328 data sheet pg 134 for more details)
   OCR1A = 100;      //initialize the comparator
-  //TIMSK1 = 0x03;    //enable comparator A and overflow interrupts - done in run_fan()
+  TIMSK1 = 0x03;    //enable comparator A and overflow interrupts - done in run_fan()
   TCCR1A = 0x00;    //timer control registers set for
   TCCR1B = 0x00;    //normal operation, timer disabled
   // set up zero crossing interrupt
-  //attachInterrupt(0,zeroCrossingInterrupt, RISING);    //Do this in run_fan()
+  attachInterrupt(0,zeroCrossingInterrupt, RISING);    //Do this in run_fan()
     //IRQ0 is pin 2. Call zeroCrossingInterrupt 
-    //on rising signal  
+    //on rising signal 
+  // initialize serial communication:
+  Serial.begin(115200);
+  inputString.reserve(200); // reserve mem for received message on serial port 
   int state = 0;
   #ifdef mqtt
     //initialise state as idle on statup
@@ -253,6 +259,7 @@ void setup() {
 void zeroCrossingInterrupt(){ //zero cross detect   
   TCCR1B=0x04; //start timer with divide by 256 input
   TCNT1 = 0;   //reset timer - count from zero
+  crosses++;
 }
 
 ISR(TIMER1_COMPA_vect){ //comparator match
@@ -297,7 +304,14 @@ void run_fan(int x) {
     //set up interrupt
     attachInterrupt(0,zeroCrossingInterrupt, RISING);  // inturrupt 0 on digital pin 2
     //set a value that is a proportion of 520 for power
-    on_wait = (520 - ((float)x / 100 * 520));
+    divisor = (float)x / 100;
+    proportion = divisor * 520;
+    on_wait = 520 - proportion;
+    #ifdef debug
+      Serial.print("on_wait = ");
+      Serial.print(on_wait);
+      Serial.print("  ");
+    #endif
     if ( on_wait < 104) {
       OCR1A = 104;
     }
@@ -311,13 +325,13 @@ void run_fan(int x) {
 
 void stop_fan() {
   //undo phase angle magic here
-  detachInterrupt(0);
+  //detachInterrupt(0);
   digitalWrite(GATE,LOW);
   #ifdef debug
     Serial.println("Fan off");
   #endif  
   TCCR1B = 0x00;
-  TIMSK1 = 0x00;    //disable comparator A and overflow interrupts
+  //TIMSK1 = 0x00;    //disable comparator A and overflow interrupts
   TCCR1A = 0x00;    //timer control registers set for
   TCCR1B = 0x00;    //normal operation, timer disabled
 }
@@ -334,9 +348,9 @@ void proc_idle() {
   }else {
     //twiddle thumbs
   }
-  if (cooling) { //reset cooling variable
-  // false;
-  }
+//  if (cooling) { //reset cooling variable
+//  // false;
+//  }
 }
 
 void going_yet() {
@@ -380,6 +394,11 @@ void proc_start_up() {
     #endif    
   }
   //run fan if true
+//  #ifdef debug
+//    Serial.print("runFan = ");
+//    Serial.print(runFan);
+//    Serial.print("  ");
+//  #endif
   if (runFan) {
     run_fan(40);
   }
@@ -500,12 +519,12 @@ void fan_and_pellet_management() {
       start_feed_pause = millis();
       digitalWrite(AUGER, LOW);
       #ifdef debug
-        Serial.println("Auger off");
+        Serial.print("  Auger off  ");
       #endif
     }else {
       digitalWrite(AUGER, HIGH);
       #ifdef debug
-        Serial.println("Auger on");
+        Serial.print("  Auger on  ");
       #endif 
     }
   } 
@@ -533,7 +552,7 @@ void pump(bool on) { //prevents short cycling of pump
     if (millis() - start_pump_time > PUMP_TIME) {
       digitalWrite(PUMP, LOW);
       #ifdef debug
-        Serial.println("Pump off");
+        Serial.print("  Pump off  ");
       #endif      
       start_pump_time = 0;
     }
@@ -556,7 +575,7 @@ void proc_heating() {
       Serial.print("%");
       Serial.print("  Pellets pause = ");
       Serial.print(feed_pause_percent);
-      Serial.println("%");
+      Serial.print("%  ");
     #endif
   #endif
   //test to see if dz aborts
@@ -603,19 +622,20 @@ void proc_heating() {
 
 void cool_to_stop(int target_state) {
   #ifdef debug
-    Serial.println("Cooling down as all off");
+    Serial.print("  Cooling down as all off  ");
   #endif 
-  //start pump to dump heat
-  pump(true);
-  #ifdef debug
-    Serial.println("Pump on");
-  #endif      
   //Keep pumping heat into house until boiler cool
   if (water_temp < LOW_TEMP){
     pump(false);
     #ifdef debug
       Serial.println("Pump off");
     #endif        
+  }else {
+    //start pump to dump heat
+    pump(true);
+    #ifdef debug
+      Serial.print("  Pump on  ");
+    #endif  
   }
   //keep fannng until no light
   if (flame_val < START_FLAME) {
@@ -624,7 +644,7 @@ void cool_to_stop(int target_state) {
     run_fan(100);
   }
   if ((flame_val < START_FLAME) && (water_temp < LOW_TEMP)) {
-    if (target_state = STATE_OFF) {
+    if (target_state == STATE_OFF) {
       first_loop = true;
     }
     state = target_state;
@@ -643,11 +663,11 @@ void proc_cool_down() {
    * 2. DZ pin LOW (heating) -> STATE_HEATING
    * 3. DZ pin HIGH (off) -> keep pumping/blowing until firebox empty and cooled boiler
    */
+  digitalWrite(AUGER, LOW);
+  digitalWrite(ELEMENT, LOW);
   flame_val = analogRead(LIGHT);
   if (water_temp > HIGH_TEMP) {
     stop_fan();
-    digitalWrite(AUGER, LOW);
-    digitalWrite(ELEMENT, LOW);
     //pump some water to cool it
     pump(true);
     #ifdef debug
@@ -675,6 +695,7 @@ void proc_cool_down() {
     if (digitalRead(DZ_PIN) == HIGH) {
       //no heat needed so empty fire box
       cool_to_stop(STATE_IDLE);
+      start_count = 0;
     }
   }  
 }
@@ -751,7 +772,7 @@ void safety() {
     #endif    
     #ifdef debug
       Serial.print("Auger temp is: ");
-      Serial.println(auger_temp);
+      Serial.print(auger_temp);
     #endif
   }
 }
@@ -795,6 +816,9 @@ void loop() {
       debounce_start = 0;
     }
   }
+  
+  
+  
   //serial instruction
   if (state !=STATE_OFF) {
     if (stringComplete) {
@@ -850,6 +874,14 @@ void loop() {
         publish(FLAME_PUB);
         pub_timer = 0;
       }  
+    }
+  #endif
+    #ifdef ac_counter
+    if (crosses > 60) {
+      crosses = 0;
+      counts++;
+      Serial.print("Number of counts = ");
+      Serial.println(counts);
     }
   #endif
   //delay(200);
