@@ -45,7 +45,7 @@ const long FEED_TIME = 30000;
 
 
 #ifdef mqtt
-  long PUB_INTERVAL;
+  long PUB_INTERVAL = 1000;
   long previousMillis = 0;
   const long PUB_INT = 60000; //publish values every minute
   const int STATE_PUB = 3;
