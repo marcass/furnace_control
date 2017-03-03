@@ -45,14 +45,16 @@ const long FEED_TIME = 30000;
 
 
 #ifdef mqtt
-  unsigned long pub_timer = 0;
+  long PUB_INTERVAL;
+  long previousMillis = 0;
   const long PUB_INT = 60000; //publish values every minute
   const int STATE_PUB = 3;
   const int WATER_TEMP_PUB = 0;
   const int AUGER_TEMP_PUB = 1;
   const int FLAME_PUB = 2;
   const int ERROR_PUB = 4;
-  //int pub[5] = {WATER_TEMP_PUB, AUGER_TEMP_PUB, FLAME_PUB, STATE_PUB, ERROR_PUB};
+  int thisSens = 0;
+  int sensorPub[] = {WATER_TEMP_PUB, AUGER_TEMP_PUB, FLAME_PUB};
   String STATE_TOPIC = "boiler/state";
   String WATER_TEMP_TOPIC = "boiler/temp/water";
   String AUGER_TEMP_TOPIC = "boiler/temp/auger";
@@ -870,15 +872,27 @@ void loop() {
   }
   #ifdef mqtt
     if ((state == STATE_START_UP) or (state == STATE_HEATING) or (state == STATE_COOL_DOWN)) { //publish messages
-      if (pub_timer == 0) {
-        pub_timer = millis(); 
+      unsigned long currentMillis = millis();
+      if(currentMillis - previousMillis > PUB_INTERVAL) {
+        previousMillis = currentMillis;  
+        if (thisSens < 3 ) {
+          thisSens++; 
+        }else {
+          thisSens = 0;
+        }
+        publish(sensorPub[thisSens]);
       }
-      if (millis() - pub_timer > PUB_INT) {
-        publish(WATER_TEMP_PUB);
-        publish(AUGER_TEMP_PUB);
-        publish(FLAME_PUB);
-        pub_timer = 0;
-      }  
+    }
+        
+//      if (pub_timer == 0) {
+//        pub_timer = millis(); 
+//      }
+//      if (millis() - pub_timer > PUB_INT) {
+//        publish(WATER_TEMP_PUB);
+//        publish(AUGER_TEMP_PUB);
+//        publish(FLAME_PUB);
+//        pub_timer = 0;
+//      }  
     }
   #endif
     #ifdef ac_counter
