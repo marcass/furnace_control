@@ -42,7 +42,7 @@ const long PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
 const int BUTTON_ON_THRESHOLD = 1500;//1.5s in ms for turning from off to idle and vice versa
 const long FEED_PAUSE = 60000; //60s and calculating a result so might need to be a float
 const long FEED_TIME = 30000;
-const long STATE_CHANGE_THRES = 30000;
+const long STATE_CHANGE_THRES = 5000;
 const long STOP_THRESH = 5000; //for  fan short cycling
 
 
