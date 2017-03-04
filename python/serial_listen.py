@@ -57,5 +57,6 @@ if __name__ == "__main__":
     # client.loop_forever()
     client.loop_start()
     while True:
-        readlineCR(port)
-        #print rcv
+        rcv = readlineCR(port)
+        
+        print rcv

@@ -3,7 +3,7 @@
 /*******************************
  BOILER CONTROL
  *******************************/
-#define debug
+//#define debug
 #define pid //use if PID controlling fan output
 //#define no_PID //use if not pid controlling
 #define mqtt
@@ -29,19 +29,19 @@
 
 //Constants
 const long ELEMENT_TIME = 300000; //5min in ms
-const long START_FEED_TIME = 15000;//TEST 110000; //2min 20s in ms for pellet feed initially
+const long START_FEED_TIME = 110000; //2min 20s in ms for pellet feed initially
 const int LOW_TEMP = 50; //deg C -> low end of heating range
 const int HIGH_TEMP = 75; //deg C -> high end of heating range
 const int MID_TEMP = 68; //Send back to heating if over heats form here
 const int TOO_HOT_TEMP = 85; //cool down NOW
 const int AUGER_OVER_TEMP = 55; //deg C - don't want a hopper fire
-const long START_FAN_TIME = 20000; //20s in ms for time to blow to see if flame present
+const long START_FAN_TIME = 45000; //45s in ms for time to blow to see if flame present
 const int FLAME_VAL_THRESHOLD = 120;//work out a value here that is reasonable
 const int START_FLAME = 80;
 const long PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
 const int BUTTON_ON_THRESHOLD = 1500;//1.5s in ms for turning from off to idle and vice versa
-const long FEED_PAUSE = 60000; //60s and calculating a result so might need to be a float
-const long FEED_TIME = 30000;
+const long FEED_PAUSE = 40000; //60s and calculating a result so might need to be a float
+const long FEED_TIME = 10000;
 const long STATE_CHANGE_THRES = 5000;
 const long STOP_THRESH = 5000; //for  fan short cycling
 
@@ -371,9 +371,6 @@ void proc_idle() {
   }else {
     //twiddle thumbs
   }
-//  if (cooling) { //reset cooling variable
-//  // false;
-//  }
 }
 
 void going_yet() {
@@ -695,6 +692,7 @@ void cool_to_stop(int target_state) {
   }else {
     //start pump to dump heat
     pump(true);
+    
     #ifdef debug
       Serial.print("  Pump on  ");
     #endif  
@@ -706,14 +704,22 @@ void cool_to_stop(int target_state) {
     run_fan(100);
   }
   if ((flame_val < START_FLAME) && (water_temp < LOW_TEMP)) {
-    if (target_state == STATE_OFF) {
-      first_loop = true;
+    if (state_trans_start == 0) { //smooth state transitions
+      state_trans_start = millis();
     }
-    state = target_state;
-    #ifdef mqtt
-      //
-      publish(STATE_PUB);
-    #endif        
+    if (millis() - state_trans_start > STATE_CHANGE_THRES) {
+      if (target_state == STATE_OFF) {
+      first_loop = true;
+      }
+      state = target_state;
+      #ifdef mqtt
+        //
+        publish(STATE_PUB);
+      #endif   
+      state_trans_start = 0;
+    } //else keep coming back to check     
+  }else {
+    state_trans_start = 0;
   }
       
 }
