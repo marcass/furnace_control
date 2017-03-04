@@ -1,0 +1,4 @@
+#may need to run "udevadm monitor --environment" to get udev to respond
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python /home/marcus/git/furnace_control/python/serial_listen.py
