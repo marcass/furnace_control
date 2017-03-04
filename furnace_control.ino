@@ -28,14 +28,15 @@
 #include <avr/interrupt.h>
 
 //Constants
-const long ELEMENT_TIME = 300000; //5min in ms
-const long START_FEED_TIME = 110000; //2min 20s in ms for pellet feed initially
+const long ELEMENT_TIME = 360000; //6min in ms
+const long START_FEED_TIME = 110000; //2min 10s in ms for pellet feed initially
 const int LOW_TEMP = 50; //deg C -> low end of heating range
 const int HIGH_TEMP = 75; //deg C -> high end of heating range
 const int MID_TEMP = 68; //Send back to heating if over heats form here
 const int TOO_HOT_TEMP = 85; //cool down NOW
 const int AUGER_OVER_TEMP = 55; //deg C - don't want a hopper fire
 const long START_FAN_TIME = 45000; //45s in ms for time to blow to see if flame present
+const long END_FAN_TIME = 360000; //6min of blow to empty puck from burn box
 const int FLAME_VAL_THRESHOLD = 120;//work out a value here that is reasonable
 const int START_FLAME = 80;
 const long PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
@@ -524,7 +525,7 @@ void fan_and_pellet_management() {
    ************************************************/
   if (water_temp < LOW_TEMP) { //go hard on the fan
     run_fan(100);
-  }else if (water_temp > TOO_HOT_TEMP) {
+  }else if (water_temp > HIGH_TEMP) {
     state = STATE_COOL_DOWN;
     #ifdef mqtt
       //
@@ -666,7 +667,7 @@ void proc_heating() {
       Serial.print(" Pump on ");
     #endif    
     //kill fan if too hot
-    if (water_temp > TOO_HOT_TEMP) {
+    if (water_temp > HIGH_TEMP) {
       state = STATE_COOL_DOWN;
       #ifdef mqtt
         //
@@ -680,6 +681,14 @@ void proc_heating() {
 }
 
 void cool_to_stop(int target_state) {
+  //make sure stuff stays off
+  digitalWrite(AUGER, LOW);
+  digitalWrite(ELEMENT, LOW);
+  if (water_temp > TEMP_SET_POINT) {
+    stop_fan();
+  }else {
+    run_fan(100);
+  }
   #ifdef debug
     Serial.print("  Cooling down as all off  ");
   #endif 
@@ -688,7 +697,31 @@ void cool_to_stop(int target_state) {
     pump(false);
     #ifdef debug
       Serial.print(" Pump off ");
-    #endif        
+    #endif
+    if (fan_start == 0) {
+      fan_start = millis();
+    }
+    if (flame_val > START_FLAME) {
+      fan_start = 0; //still have light so reset final blow
+    }
+    if (millis() - fan_start > END_FAN_TIME) { 
+      stop_fan(); //puck blown to peices, clean grate for next light
+      if (state_trans_start == 0) { //smooth state transitions
+        state_trans_start = millis();
+      }
+      if (millis() - state_trans_start > STATE_CHANGE_THRES) {
+        if (target_state == STATE_OFF) {
+        first_loop = true;
+        start_count = 0;
+        }
+        state = target_state;
+        #ifdef mqtt
+          //
+          publish(STATE_PUB);
+        #endif   
+        state_trans_start = 0;
+      } //else keep coming back to check 
+    } 
   }else {
     //start pump to dump heat
     pump(true);
@@ -697,31 +730,6 @@ void cool_to_stop(int target_state) {
       Serial.print("  Pump on  ");
     #endif  
   }
-  //keep fannng until no light
-  if (flame_val < START_FLAME) {
-    stop_fan();
-  }else {
-    run_fan(100);
-  }
-  if ((flame_val < START_FLAME) && (water_temp < LOW_TEMP)) {
-    if (state_trans_start == 0) { //smooth state transitions
-      state_trans_start = millis();
-    }
-    if (millis() - state_trans_start > STATE_CHANGE_THRES) {
-      if (target_state == STATE_OFF) {
-      first_loop = true;
-      }
-      state = target_state;
-      #ifdef mqtt
-        //
-        publish(STATE_PUB);
-      #endif   
-      state_trans_start = 0;
-    } //else keep coming back to check     
-  }else {
-    state_trans_start = 0;
-  }
-      
 }
 
 
@@ -734,6 +742,15 @@ void proc_cool_down() {
   digitalWrite(AUGER, LOW);
   digitalWrite(ELEMENT, LOW);
   flame_val = analogRead(LIGHT);
+  if (water_temp > TOO_HOT_TEMP) {
+    cool_to_stop(STATE_ERROR);
+    reason = "failed to start";
+    #ifdef mqtt
+      //
+      publish(ERROR_PUB);
+      reason = "";
+    #endif 
+  }
   if (water_temp > HIGH_TEMP) {
     stop_fan();
     //pump some water to cool it
@@ -743,12 +760,7 @@ void proc_cool_down() {
     #endif    
   }else if (water_temp > MID_TEMP) {
     pump(true);
-    //blow fan until fire is out to empty firebox of pellet load
-    if (flame_val < START_FLAME) {
-      stop_fan();
-    }else {
-      run_fan(100);
-    }
+    run_fan(50); //gentle blow to keep things ticking over
   }
   //not too hot but now but could be cooler
   if (water_temp < MID_TEMP) {

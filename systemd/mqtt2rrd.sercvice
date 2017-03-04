@@ -1,0 +1,11 @@
+[Unit]
+Description=Logs mosquitto subs to rrd
+After=multi-user.target
+
+[Service]
+Type=idle
+User=marcus
+ExecStart=/usr/bin/python /home/git/furnace_control/MQTT2RRD/mqtt2rrd.py start --conf_file mqtt2rrd.conf
+
+[Install]
+WantedBy=multi-user.target

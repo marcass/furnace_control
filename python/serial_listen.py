@@ -9,7 +9,7 @@ def on_connect(client, userdata, flags, rc):
     print("Connected with result code "+str(rc))
     # Subscribing in on_connect() means that if we lose the connection and
     # reconnect then subscriptions will be renewed.
-    client.subscribe("boiler/#")
+    client.subscribe("boiler/switch")
 
 # The callback for when a PUBLISH message is received from the server.
 def on_message(client, userdata, msg):
@@ -39,7 +39,7 @@ def readlineCR(port):
 
 
 auth = {'username':"esp", 'password':"heating"}
-port = serial.Serial("/dev/ttyUSB0", baudrate=115200, timeout=3.0)
+port = serial.Serial("/dev/arduino", baudrate=115200, timeout=3.0)
 
 if __name__ == "__main__":
     client = mqtt.Client()
@@ -56,7 +56,8 @@ if __name__ == "__main__":
     # manual interface.
     # client.loop_forever()
     client.loop_start()
-    while True:
-        rcv = readlineCR(port)
-        
-        print rcv
+    #for debugging enable printing of serial port data
+    #while True:
+        #for debugging enable printing of serial port data
+        #rcv = readlineCR(port)
+        #print rcv
