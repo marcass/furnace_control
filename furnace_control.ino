@@ -843,7 +843,8 @@ void proc_off() {
         //
         publish(STATE_PUB);
         publish(ERROR_PUB); //clear error register
-      #endif      
+      #endif    
+      start_count = 0;  
       //delay(10);
     }
   }
