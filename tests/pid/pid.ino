@@ -17,14 +17,15 @@ long start_feed_pause;
 const long FEED_PAUSE = 60000;
 const long FEED_TIME = 30000;
 bool feeding = true;
+double Kp=10, Ki=0.001, Kd=1;
 
 //Specify the links and initial tuning parameters
 //PID fanPID(&Input, &Output, &Setpoint,2,5,1, DIRECT);
 //PID fanPID(&water_temp, &power, &TEMP_SET_POINT,2,5,1, DIRECT); //need more fan power to get hotter so DIRECT
 //PID pelletsPID(&water_temp, &feed_pause_percent, &TEMP_SET_POINT,2,5,1, REVERSE); //need shorter feed time to get to hotter so REVERSE
-PID fanPID(&water_temp, &power, &TEMP_SET_POINT,0.1,1,1, DIRECT); //need more fan power to get hotter so DIRECT
-PID pelletsPID(&water_temp, &feed_pause_percent, &TEMP_SET_POINT,0.1,1,1, REVERSE); //need shorter feed time to get to hotter so REVERSE
-PID feedPID(&water_temp, &feed_percent, &TEMP_SET_POINT,2,5,1, DIRECT);
+PID fanPID(&water_temp, &power, &TEMP_SET_POINT,Kp, Ki, Kd, DIRECT); //need more fan power to get hotter so DIRECT
+PID pelletsPID(&water_temp, &feed_pause_percent, &TEMP_SET_POINT,Kp, Ki, Kd, REVERSE); //need shorter feed time to get to hotter so REVERSE
+PID feedPID(&water_temp, &feed_percent, &TEMP_SET_POINT,Kp, Ki, Kd, DIRECT);
 
 //Inputs
 const int WATER_TEMP = 1; //analogue pin 3
@@ -46,12 +47,15 @@ void setup() {
   Serial.begin(115200);
   //initialize the PID variables we're linked to
   fanPID.SetOutputLimits(30, 80); //percentage of fan power
-  fanPID.SetSampleTime(500); //SAMPLES EVERY 0.5s
+  fanPID.SetSampleTime(200); //SAMPLES EVERY 0.5s
+  feedPID.SetSampleTime(200);
+  feedPID.SetOutputLimits(60,100);
   pelletsPID.SetOutputLimits(60,100); //percentage of feed time check to see that burning all of load
   pelletsPID.SetSampleTime(200);
   //turn the PID on
   fanPID.SetMode(AUTOMATIC);
   pelletsPID.SetMode(AUTOMATIC);
+  feedPID.SetMode(AUTOMATIC);
 }
 
 void loop() {
@@ -97,11 +101,12 @@ void loop() {
   Serial.print("  Pellets pause = ");
   Serial.print(feed_pause_percent);
   Serial.print("%");
+  Serial.print("  Feed percent:  ");
+  Serial.print(feed_percent);
+  Serial.print("%");
   Serial.print("  Pellets feed pause time = ");
   Serial.print((int)feed_pause);
   Serial.print("ms");
-  Serial.print(feed_percent);
-  Serial.print("%");
   Serial.print("  Pellets feed time = ");
   Serial.print((int)feed_time);
   Serial.print("ms");

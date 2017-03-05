@@ -122,6 +122,7 @@ long feed_time;
 #ifdef pid
   //PID setup
   //double Setpoint, Input, Output;
+  double Kp=10, Ki=0.001, Kd=1; //P, I and D see http://playground.arduino.cc/Code/PIDLibrarySetTunings
   double TEMP_SET_POINT = 68; //PID SETPOINT
   double power; //variable for percentage power we want fan to run at works from 30 (min) to 80 (max)
   double water_temp;
@@ -129,9 +130,9 @@ long feed_time;
   double feed_percent;
   //Specify the links and initial tuning parameters
   //PID fanPID(&Input, &Output, &Setpoint,2,5,1, DIRECT);
-  PID fanPID(&water_temp, &power, &TEMP_SET_POINT,2,5,1, DIRECT); //need more fan power to get hotter so DIRECT
-  PID pausePID(&water_temp, &feed_pause_percent, &TEMP_SET_POINT,2,5,1, REVERSE); //need shorter feed time to get to hotter so REVERSE
-  PID feedPID(&water_temp, &feed_percent, &TEMP_SET_POINT,2,5,1, DIRECT);
+  PID fanPID(&water_temp, &power, &TEMP_SET_POINT,Kp, Ki, Kd, DIRECT); //need more fan power to get hotter so DIRECT
+  PID pausePID(&water_temp, &feed_pause_percent, &TEMP_SET_POINT,Kp, Ki, Kd, REVERSE); //need shorter feed time to get to hotter so REVERSE
+  PID feedPID(&water_temp, &feed_percent, &TEMP_SET_POINT,Kp, Ki, Kd, DIRECT);
 #endif
 
 #ifdef no_PID
