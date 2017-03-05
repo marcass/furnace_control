@@ -846,6 +846,14 @@ void proc_off() {
       #endif    
       start_count = 0;  
       //delay(10);
+    }else {
+      reason = inputString;
+      #ifdef mqtt
+        publish(ERROR_PUB); //dump message so we can see how it was malformed
+      #endif
+      reason = "";
+      inputString = "";
+      stringComplete = false;  
     }
   }
 }
