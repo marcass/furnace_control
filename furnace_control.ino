@@ -219,7 +219,7 @@ void setup() {
     //on rising signal
   
   // initialize serial communication:
-  Serial.begin(115200);
+  Serial.begin(9600);//slower speed for long cable
   inputString.reserve(200); // reserve mem for received message on serial port 
   int state = 0;
   #ifdef mqtt
@@ -365,9 +365,11 @@ void proc_idle() {
   if (digitalRead(DZ_PIN) == LOW) {
     state = STATE_START_UP;
     runFan = true;
+    reason = "";
     #ifdef mqtt
       //
       publish(STATE_PUB);
+      publish(ERROR_PUB); //clear error register
     #endif
   }else {
     //twiddle thumbs
@@ -425,6 +427,7 @@ void proc_start_up() {
     #ifdef mqtt
       //
       publish(ERROR_PUB);
+      publish(STATE_PUB);
       reason = "";
     #endif    
   }
@@ -797,6 +800,19 @@ void proc_error() {
   }else {
     pump(false);
   }
+  //turn off if serial comms received
+  if (stringComplete) {
+    if (inputString.startsWith("Turn Off Boiler")) {
+      inputString = "";
+      stringComplete = false;
+      state = STATE_OFF;
+      #ifdef mqtt
+        //
+        publish(STATE_PUB);
+      #endif      
+      //delay(10);
+    }
+  }
 }
 
 void proc_off() {
@@ -822,9 +838,11 @@ void proc_off() {
       inputString = "";
       stringComplete = false;
       state = STATE_IDLE;
+      reason = "";
       #ifdef mqtt
         //
         publish(STATE_PUB);
+        publish(ERROR_PUB); //clear error register
       #endif      
       //delay(10);
     }
@@ -848,6 +866,7 @@ void safety() {
     #ifdef mqtt
       //
       publish(ERROR_PUB);
+      publish(STATE_PUB);
       reason = "";
     #endif    
     #ifdef debug
@@ -904,6 +923,7 @@ void loop() {
     if (stringComplete) {
       if (inputString.startsWith("Turn Off Boiler")) {
         inputString = "";
+        reason = "";
         stringComplete = false;
         state = STATE_OFF;
         first_loop = true;
@@ -976,7 +996,7 @@ void loop() {
         Serial.println(counts);
       }
     #endif
-  delay(200);
+  //delay(200); //can't read form serial with delay
   if (reset) {
     if (millis() -  reset_start_count_timer > RESET_THRESHOLD) {
       start_count = 0;

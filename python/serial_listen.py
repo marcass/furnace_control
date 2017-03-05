@@ -39,7 +39,8 @@ def readlineCR(port):
 
 
 auth = {'username':"esp", 'password':"heating"}
-port = serial.Serial("/dev/arduino", baudrate=115200, timeout=3.0)
+#port = serial.Serial("/dev/arduino", baudrate=9600, timeout=3.0)
+port = serial.Serial("/dev/ttyUSB0", baudrate=9600, timeout=3.0)
 
 if __name__ == "__main__":
     client = mqtt.Client()
@@ -56,8 +57,7 @@ if __name__ == "__main__":
     # manual interface.
     # client.loop_forever()
     client.loop_start()
-    #for debugging enable printing of serial port data
-    #while True:
+    while True:
         #for debugging enable printing of serial port data
-        #rcv = readlineCR(port)
+        rcv = readlineCR(port)
         #print rcv
