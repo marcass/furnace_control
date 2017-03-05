@@ -36,7 +36,7 @@ const int MID_TEMP = 68; //Send back to heating if over heats form here
 const int TOO_HOT_TEMP = 85; //cool down NOW
 const int AUGER_OVER_TEMP = 55; //deg C - don't want a hopper fire
 const long START_FAN_TIME = 45000; //45s in ms for time to blow to see if flame present
-const long END_FAN_TIME = 360000; //6min of blow to empty puck from burn box
+const long END_FAN_TIME = 480000; //6min of blow to empty puck from burn box
 const int FLAME_VAL_THRESHOLD = 120;//work out a value here that is reasonable
 const int START_FLAME = 80;
 const long PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
@@ -45,10 +45,13 @@ const long FEED_PAUSE = 40000; //60s and calculating a result so might need to b
 const long FEED_TIME = 10000;
 const long STATE_CHANGE_THRES = 5000;
 const long STOP_THRESH = 5000; //for  fan short cycling
+const long ERROR_THRES = 10000;
+long RESET_THRESHOLD = 300000;
 
 
 #ifdef mqtt
   long PUB_INTERVAL = 1000;
+  long PUB_INTERVAL_STATE = 10000;
   long previousMillis = 0;
   const long PUB_INT = 60000; //publish values every minute
   const int STATE_PUB = 3;
@@ -57,7 +60,7 @@ const long STOP_THRESH = 5000; //for  fan short cycling
   const int FLAME_PUB = 2;
   const int ERROR_PUB = 4;
   int thisSens = 0;
-  int sensorPub[] = {WATER_TEMP_PUB, AUGER_TEMP_PUB, FLAME_PUB};
+  int sensorPub[] = {WATER_TEMP_PUB, AUGER_TEMP_PUB, FLAME_PUB, STATE_PUB};
   String STATE_TOPIC = "boiler/state";
   String WATER_TEMP_TOPIC = "boiler/temp/water";
   String AUGER_TEMP_TOPIC = "boiler/temp/auger";
@@ -91,7 +94,6 @@ int flame_val; // range from 0 to 1024 ( i think)
 int state;
 int start_count = 0;
 unsigned long reset_start_count_timer;
-long RESET_THRESHOLD = 300000;
 bool reset = false;
 String reason = "";
 bool feeding = true;
@@ -106,6 +108,7 @@ int crosses;
 int counts;
 unsigned long state_trans_start = 0;
 unsigned long stop_start = 0; //for  fan short cycling
+unsigned long error_timer = 0; //for dropping inot error in start loop
 
 //I expect that code will alter these values in future
 unsigned long start_feed_time = 0;
@@ -198,7 +201,7 @@ void setup() {
     fanPID.SetSampleTime(3000); //SAMPLES EVERY 3s
     pausePID.SetOutputLimits(60,100); //percentage of feed time check to see that burning all of load
     pausePID.SetSampleTime(3000);
-    feedPID.SetOutputLimits(20,100); //percentage of feed time check to see that burning all of load
+    feedPID.SetOutputLimits(40,100); //percentage of feed time check to see that burning all of load
     feedPID.SetSampleTime(3000);
     //turn the PID on
     fanPID.SetMode(AUTOMATIC);
@@ -234,7 +237,7 @@ void setup() {
 //MQTT stuff
 #ifdef mqtt
   void publish(int i) {
-    if ( i == WATER_TEMP_PUB) {
+    if (i == WATER_TEMP_PUB) {
       Serial.print("MQTT:");
       Serial.print(WATER_TEMP_TOPIC);
       Serial.print("/");
@@ -249,11 +252,23 @@ void setup() {
       Serial.print(FLAME_TOPIC);
       Serial.print("/");
       Serial.println(flame_val);
-    }else if ( i == STATE_PUB) {
+    }else if (i == STATE_PUB) {
       Serial.print("MQTT:");
       Serial.print(STATE_TOPIC);
       Serial.print("/");
-      Serial.println(state); 
+      if (state == STATE_IDLE) {
+        Serial.println("Idle");
+      }else if (state == STATE_START_UP) {
+        Serial.println("Starting");
+      }else if (state == STATE_HEATING) {
+        Serial.println("Heating"); 
+      }else if (state == STATE_COOL_DOWN) {
+        Serial.println("Cool down");  
+      }else if (state == STATE_ERROR) {
+        Serial.println("Error");
+      }else if (state == STATE_OFF) {
+        Serial.println("Off");
+      }
     }else if ( i == ERROR_PUB) {
       Serial.print("MQTT:");
       Serial.print(ERROR_TOPIC);
@@ -422,14 +437,21 @@ void going_yet() {
 void proc_start_up() {
   //kill if failed to start too many times
   if (start_count > 2) {
-    state = STATE_ERROR;
-    reason = "failed to start";
-    #ifdef mqtt
-      //
-      publish(ERROR_PUB);
-      publish(STATE_PUB);
-      reason = "";
-    #endif    
+    if (error_timer == 0) { //wait and think about shit for a while
+      error_timer =  millis();
+    }
+    if (millis() - error_timer > ERROR_THRES) {
+      state = STATE_ERROR;
+      reason = "failed to start";
+      #ifdef mqtt
+        //
+        publish(ERROR_PUB);
+        publish(STATE_PUB);
+        reason = "";
+        error_timer = 0;
+      #endif
+    }
+    runFan = true; //meanwhile, fan shit    
   }
   //run fan if true
   #ifdef debug
@@ -747,7 +769,7 @@ void proc_cool_down() {
   flame_val = analogRead(LIGHT);
   if (water_temp > TOO_HOT_TEMP) {
     cool_to_stop(STATE_ERROR);
-    reason = "failed to start";
+    reason = "Too hot";
     #ifdef mqtt
       //
       publish(ERROR_PUB);
@@ -811,6 +833,14 @@ void proc_error() {
         publish(STATE_PUB);
       #endif      
       //delay(10);
+    }else {
+      reason = inputString;
+      #ifdef mqtt
+        publish(ERROR_PUB); //dump message so we can see how it was malformed
+      #endif
+      reason = "";
+      inputString = "";
+      stringComplete = false;  
     }
   }
 }
@@ -891,13 +921,15 @@ void loop() {
   //see if we need to turn on or off
   //dz calls it: 1-wire relay gets closed by DZ3
   if (digitalRead(DZ_PIN) == HIGH) {
-    if ( state != STATE_IDLE ) {
+    if ((state == STATE_HEATING) || (state == STATE_START_UP)) {
       state = STATE_COOL_DOWN;
       #ifdef mqtt
         //
         publish(STATE_PUB);
-      #endif      
-    } //else do nothing
+      #endif  
+    }else {
+      //do nothing i guess
+    }
   }
   //button press?
   if (digitalRead(BUTTON_1) == HIGH) {
@@ -928,22 +960,21 @@ void loop() {
   
   
   //serial instruction
-  if (state !=STATE_OFF) {
-    if (stringComplete) {
-      if (inputString.startsWith("Turn Off Boiler")) {
-        inputString = "";
-        reason = "";
-        stringComplete = false;
-        state = STATE_OFF;
-        first_loop = true;
-        #ifdef mqtt
-          //
-          publish(STATE_PUB);
-        #endif        
-        //delay(10);
-      }
+  if (stringComplete) {
+    if (inputString.startsWith("Turn Off Boiler")) {
+      inputString = "";
+      reason = "";
+      stringComplete = false;
+      state = STATE_OFF;
+      first_loop = true;
+      #ifdef mqtt
+        //
+        publish(STATE_PUB);
+      #endif        
+      //delay(10);
     }
   }
+  
   switch (state) {
     case STATE_IDLE:
       proc_idle();
@@ -977,7 +1008,7 @@ void loop() {
       unsigned long currentMillis = millis();
       if(currentMillis - previousMillis > PUB_INTERVAL) {
         previousMillis = currentMillis;  
-        if (thisSens < 3 ) {
+        if (thisSens < 4 ) {//0-2 are sensors, 3 is state
           thisSens++; 
         }else {
           thisSens = 0;
@@ -985,17 +1016,13 @@ void loop() {
         publish(sensorPub[thisSens]);
       }
     }
-        
-//      if (pub_timer == 0) {
-//        pub_timer = millis(); 
-//      }
-//      if (millis() - pub_timer > PUB_INT) {
-//        publish(WATER_TEMP_PUB);
-//        publish(AUGER_TEMP_PUB);
-//        publish(FLAME_PUB);
-//        pub_timer = 0;
-//      }  
-//    }
+    if (state != STATE_OFF) {
+      unsigned long currentMillis1 = millis();
+      if(currentMillis1 - previousMillis > PUB_INTERVAL_STATE) {
+        previousMillis = currentMillis1;  
+        publish(STATE_PUB);
+      }
+    }
   #endif
     #ifdef ac_counter
       if (crosses > 60) {
@@ -1009,6 +1036,7 @@ void loop() {
   if (reset) {
     if (millis() -  reset_start_count_timer > RESET_THRESHOLD) {
       start_count = 0;
+      error_timer = 0;
       reset_start_count_timer = 0;
       reset = false;
     }
