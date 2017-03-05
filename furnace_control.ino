@@ -1,4 +1,12 @@
-
+/* ToDo
+ *  - Publish pid percentages for pause, feed adn fan
+ *  - change pause pid name
+ *  - check lcd working
+ *  - put ultrasound probe on analoge pins (as digital?)
+ *  - publish flame every second
+ *  - publish topic regularly
+ *  - check that ac crossing detector resistors are OK at 60 deg C
+ */
 
 /*******************************
  BOILER CONTROL
@@ -54,18 +62,24 @@ long RESET_THRESHOLD = 300000;
   long PUB_INTERVAL_STATE = 10000;
   long previousMillis = 0;
   const long PUB_INT = 60000; //publish values every minute
-  const int STATE_PUB = 3;
-  const int WATER_TEMP_PUB = 0;
-  const int AUGER_TEMP_PUB = 1;
-  const int FLAME_PUB = 2;
-  const int ERROR_PUB = 4;
+//  const int STATE_PUB = 3;
+//  const int WATER_TEMP_PUB = 0;
+//  const int AUGER_TEMP_PUB = 1;
+//  const int FLAME_PUB = 2;
+//  const int ERROR_PUB = 4;
   int thisSens = 0;
-  int sensorPub[] = {WATER_TEMP_PUB, AUGER_TEMP_PUB, FLAME_PUB, STATE_PUB};
+  int sensorPayload[] = {water_temp, auger_temp, flame_val, state};
   String STATE_TOPIC = "boiler/state";
   String WATER_TEMP_TOPIC = "boiler/temp/water";
   String AUGER_TEMP_TOPIC = "boiler/temp/auger";
   String FLAME_TOPIC = "boiler/flame";
   String ERROR_TOPIC = "boiler/messages";
+  String PID_FAN = "boiler/pid/fan";
+  String PID_FEED = "boiler/pid/feed";
+  String PID_PAUSE = "boiler/pid/pause";
+  String dataTop[] = {WATER_TEMP_TOPIC, AUGER_TEMP_TOPIC, FLAME_TOPIC, STATE_TOPIC};
+  int pidPayload[] = {power, feed_percent, feed_pause_percent};
+  String pidTop[] = {PID_FAN, PID_FEED, PID_PAUSE};
 #endif
 
 //States
@@ -237,45 +251,66 @@ void setup() {
 
 //MQTT stuff
 #ifdef mqtt
-  void publish(int i) {
-    if (i == WATER_TEMP_PUB) {
-      Serial.print("MQTT:");
-      Serial.print(WATER_TEMP_TOPIC);
-      Serial.print("/");
-      Serial.println(water_temp); 
-    }else if (i== AUGER_TEMP_PUB) {
-      Serial.print("MQTT:");
-      Serial.print(AUGER_TEMP_TOPIC);
-      Serial.print("/");
-      Serial.println(auger_temp); 
-    }else if (i == FLAME_PUB) {
-      Serial.print("MQTT:");
-      Serial.print(FLAME_TOPIC);
-      Serial.print("/");
-      Serial.println(flame_val);
-    }else if (i == STATE_PUB) {
-      Serial.print("MQTT:");
-      Serial.print(STATE_TOPIC);
-      Serial.print("/");
-      if (state == STATE_IDLE) {
-        Serial.println("Idle");
-      }else if (state == STATE_START_UP) {
-        Serial.println("Starting");
-      }else if (state == STATE_HEATING) {
-        Serial.println("Heating"); 
-      }else if (state == STATE_COOL_DOWN) {
-        Serial.println("Cool down");  
-      }else if (state == STATE_ERROR) {
-        Serial.println("Error");
-      }else if (state == STATE_OFF) {
-        Serial.println("Off");
-      }
-    }else if ( i == ERROR_PUB) {
-      Serial.print("MQTT:");
-      Serial.print(ERROR_TOPIC);
-      Serial.print("/");
-      Serial.println(reason); 
-    }  
+//  void publish(int i) {
+//    //sensor publishing
+//    if (i == WATER_TEMP_PUB) {
+//      Serial.print("MQTT:");
+//      Serial.print(WATER_TEMP_TOPIC);
+//      Serial.print("/");
+//      Serial.println(water_temp); 
+//    }else if (i== AUGER_TEMP_PUB) {
+//      Serial.print("MQTT:");
+//      Serial.print(AUGER_TEMP_TOPIC);
+//      Serial.print("/");
+//      Serial.println(auger_temp); 
+//    }else if (i == FLAME_PUB) {
+//      Serial.print("MQTT:");
+//      Serial.print(FLAME_TOPIC);
+//      Serial.print("/");
+//      Serial.println(flame_val);
+//    }else if (i == STATE_PUB) { //state publishing
+//      Serial.print("MQTT:");
+//      Serial.print(STATE_TOPIC);
+//      Serial.print("/");
+//      if (state == STATE_IDLE) {
+//        Serial.println("Idle");
+//      }else if (state == STATE_START_UP) {
+//        Serial.println("Starting");
+//      }else if (state == STATE_HEATING) {
+//        Serial.println("Heating"); 
+//      }else if (state == STATE_COOL_DOWN) {
+//        Serial.println("Cool down");  
+//      }else if (state == STATE_ERROR) {
+//        Serial.println("Error");
+//      }else if (state == STATE_OFF) {
+//        Serial.println("Off");
+//      }
+//    }else if ( i == ERROR_PUB) { //messages publishing
+//      Serial.print("MQTT:");
+//      Serial.print(ERROR_TOPIC);
+//      Serial.print("/");
+//      Serial.println(reason); 
+//    }
+////    else if (i == PID_PUB){
+////      Serial.print("MQTT:");
+////      Serial.print(PID_TOPIC);
+////      Serial.print("/");
+////      Serial.println(auger_temp); 
+////    }
+//    Serial.print("MQTT:");
+//    Serial.print(top);
+//    Serial.print("/");
+//    Serial.println(payload);
+//  }
+  void publish(int top, int payload) { //publish data
+    Serial.print("MQTT:");
+    Serial.print(top);
+    Serial.print("/");
+    Serial.println(payload);
+  }
+
+  void publish_message(int top, String payload) {
+    
   }
 #endif
 
@@ -1007,7 +1042,7 @@ void loop() {
   #ifdef mqtt
     if ((state == STATE_START_UP) or (state == STATE_HEATING) or (state == STATE_COOL_DOWN)) { //publish messages
       unsigned long currentMillis = millis();
-      if(currentMillis - previousMillis > PUB_INTERVAL) {
+      if(currentMillis - previousMillis > PUB_INTERVAL) { //publish temp data and topic data
         previousMillis = currentMillis;  
         if (thisSens < 4 ) {//0-2 are sensors, 3 is state
           thisSens++; 
