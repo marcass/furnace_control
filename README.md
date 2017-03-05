@@ -82,3 +82,38 @@ http://playground.arduino.cc/Code/ACPWM
 
 Switching times for the driver are 1 micro second and 4 micro seconds for the power triac
 
+#Setup
+Components of the sytsem are:
+1. Boiler controller (arduino based on a PCB)
+2. Communication interface on serial port
+3. Display device(s)
+
+##Boiler controller
+PCB in kicad files in this repo
+* Could do with 2 additional input pins for sensing hopper level
+* Check that 5W resistors are up to the task of phase angle detection
+
+## Communication interface on serial port
+Uses:
+* pyserial to capture data/print data to serial port (arduino)
+* paho-mqtt for subscribing/publishing to mosquitto broker
+* mosquitto broker for managing infomration
+
+###UDEV
+See udev rules in repo:
+* On insertion of aruduino usb assign symlink so pyserial can find device
+* runs systemd service that starts the pythion script for managing stuff to and from arduino
+
+###Data capture
+Performed by a modified script (for paho-mqtt) from https://www.clusterfsck.io/blog/mqtt-to-rrd-daemon/
+* Run at startup via systemd
+
+##Device
+Any mqtt client that runs on anything will display data from broker
+* subscribe to topics:
+  * boiler/switch (for turning on/off)
+  * boiler/flame (for displaying flame value)
+  * boiler/temp/auger
+  * boiler/temp/water
+  * boiler/messages (error messages)
+  * boiler state (state display)
