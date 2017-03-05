@@ -15,3 +15,4 @@ for INTERVAL in 1 2 5 24 72
 	'LINE1:f#ff0000:Flame' 
   done
 
+scp /home/marcus/status_plot.* mw@htpc:~/
