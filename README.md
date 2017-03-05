@@ -107,6 +107,8 @@ See udev rules in repo:
 ###Data capture
 Performed by a modified script (for paho-mqtt) from https://www.clusterfsck.io/blog/mqtt-to-rrd-daemon/
 * Run at startup via systemd
+* need to place a symlink following symlink /etc/mqtt2rrd.conf pointing to target file unless you want to pass --config_file option in command (didn't work for me)y
+
 
 ##Device
 Any mqtt client that runs on anything will display data from broker
