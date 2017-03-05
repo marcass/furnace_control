@@ -1,4 +1,10 @@
-#may need to run "udevadm monitor --environment" to get udev to respond
+[Unit]
+Description=Python serial port listener for boiler
+ 
 [Service]
-Type=oneshot
+Type=simple
+User=marcus
 ExecStart=/usr/bin/python /home/marcus/git/furnace_control/python/serial_listen.py
+
+[Install]
+WantedBy=multi-user.target

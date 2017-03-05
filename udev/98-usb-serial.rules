@@ -1,2 +1,2 @@
 # Arduino
- SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="arduino", GROUP="dialout", MODE="0666", TAG+="systemd", ENV{SYSTEMD_WANTS}="ardiono-attach.service"
+ACTION=="add", SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="arduino", GROUP="dialout", MODE="0666", RUN+="/usr/bin/systemctl start ardiono-attach.service"
