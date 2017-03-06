@@ -26,8 +26,9 @@
 // 16 microseconds.  1/2 wave of a 60Hz AC signal
 // is about 520 counts (8,333 microseconds).
 
-#define test
-//#define fan
+//#define test
+#define fan
+#define pump
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -35,10 +36,11 @@
 
 int flame_val;
 const int LIGHT = 2;
+const int PUMP = 7;
 #define DETECT 2  //zero cross detect
 #define GATE 9    //TRIAC gate
 #define PULSE 4   //trigger pulse width (counts)
-int power= 9;
+int power= 8;
 int on_wait;
 char rx_byte = 0;
 String inString = "";    // string to hold input
@@ -67,6 +69,10 @@ void setup(){
   attachInterrupt(0,zeroCrossingInterrupt, RISING);    
     //IRQ0 is pin 2. Call zeroCrossingInterrupt 
     //on rising signal
+  #ifdef pump
+    pinMode(PUMP, OUTPUT);
+    digitalWrite(PUMP, HIGH);
+  #endif
   Serial.begin(115200);
 }  
 

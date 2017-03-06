@@ -40,7 +40,7 @@ const long ELEMENT_TIME = 360000; //6min in ms
 const long START_FEED_TIME = 110000; //2min 10s in ms for pellet feed initially
 const int LOW_TEMP = 50; //deg C -> low end of heating range
 const int HIGH_TEMP = 75; //deg C -> high end of heating range
-const int MID_TEMP = 68; //Send back to heating if over heats form here
+const int MID_TEMP = 60;//TEST68; //Send back to heating if over heats form here
 const int TOO_HOT_TEMP = 85; //cool down NOW
 const int AUGER_OVER_TEMP = 55; //deg C - don't want a hopper fire
 const long START_FAN_TIME = 45000; //45s in ms for time to blow to see if flame present
@@ -58,7 +58,7 @@ long RESET_THRESHOLD = 300000;
 
 
 #ifdef mqtt
-  long PUB_INTERVAL = 250;
+  long PUB_INTERVAL = 1000;
   long previousMillis = 0;
   const long PUB_INT = 60000; //publish values every minute
   String STATE_TOPIC = "boiler/state";
@@ -69,7 +69,7 @@ long RESET_THRESHOLD = 300000;
   String PID_FAN = "boiler/pid/fan";
   String PID_FEED = "boiler/pid/feed";
   String PID_PAUSE = "boiler/pid/pause";
-  
+  int index = 0;
 #endif
 
 //States
@@ -79,6 +79,7 @@ const int STATE_HEATING = 2;
 const int STATE_COOL_DOWN = 3;
 const int STATE_ERROR = 4;
 const int STATE_OFF = 5;
+const String STATES_STRING[] = {"Idle","Starting","Heating","Cool down","Error","Off"};
 //Buttons (numbers from left
 const int BUTTON_1 = 13;
 const int BUTTON_2 = 12;
@@ -194,6 +195,7 @@ void setup() {
   digitalWrite(ELEMENT, LOW);
   pinMode(DZ_SUPPLY, OUTPUT);
   digitalWrite(DZ_SUPPLY, LOW);
+  digitalWrite(A2, LOW);
   //Initialise inputs
   pinMode(DZ_PIN, INPUT_PULLUP);
   pinMode(BUTTON_1, INPUT_PULLUP);
@@ -202,7 +204,7 @@ void setup() {
   pinMode(BUTTON_4, INPUT_PULLUP);
   #ifdef pid
     //initialize the PID variables we're linked to
-    fanPID.SetOutputLimits(55, 80); //percentage of fan power
+    fanPID.SetOutputLimits(30, 80); //percentage of fan power
     fanPID.SetSampleTime(3000); //SAMPLES EVERY 3s
     pausePID.SetOutputLimits(60,100); //percentage of feed time check to see that burning all of load
     pausePID.SetSampleTime(3000);
@@ -235,7 +237,7 @@ void setup() {
     Serial.print("MQTT:");
     Serial.print(STATE_TOPIC);
     Serial.print("/");
-    Serial.println(state);
+    Serial.println(STATES_STRING[state]);
   #endif
 }
 
@@ -298,6 +300,13 @@ void setup() {
     Serial.print("/");
     Serial.println(payload);
   }
+  void publish(String top,String payload) { //publish data
+    Serial.print("MQTT:");
+    Serial.print(top);
+    Serial.print("/");
+    Serial.println(payload);
+  } 
+  
 
   void publish_message(String message) {
     Serial.print("MQTT:");
@@ -411,7 +420,7 @@ void proc_idle() {
     reason = "";
     #ifdef mqtt
       //
-      publish(STATE_TOPIC, state);
+      publish(STATE_TOPIC, STATES_STRING[state]);
       publish_message(reason); //clear error register
     #endif
   }else {
@@ -436,7 +445,7 @@ void going_yet() {
       state = STATE_HEATING;
       #ifdef mqtt
         //
-        publish(STATE_TOPIC, state);
+        publish(STATE_TOPIC, STATES_STRING[state]);
       #endif    
       fan_start = 0;
       element_start = 0;
@@ -454,7 +463,6 @@ void going_yet() {
     if (millis() - fan_start > START_FAN_TIME) { //start again
       runFan = false;
       dump = true;
-      start_count++;
       fan_start = 0;
     }else {
       state_trans_start = 0; //not enough flame for state trans so reset timer
@@ -474,7 +482,7 @@ void proc_start_up() {
       #ifdef mqtt
         //
         publish_message(reason);
-        publish(STATE_TOPIC, state);
+        publish(STATE_TOPIC, STATES_STRING[state]);
         reason = "";
         error_timer = 0;
       #endif
@@ -490,7 +498,7 @@ void proc_start_up() {
     Serial.print("  ");
   #endif
   if (runFan) {
-    run_fan(39);
+    run_fan(100);
   }else {
     stop_fan(); //fucking fan keeps turning on
   }
@@ -582,7 +590,7 @@ void fan_and_pellet_management() {
     state = STATE_COOL_DOWN;
     #ifdef mqtt
       //
-      publish(STATE_TOPIC, state);
+      publish(STATE_TOPIC, STATES_STRING[state]);
     #endif    
   }else {
     #ifdef no_PID
@@ -688,7 +696,7 @@ void proc_heating() {
     state = STATE_COOL_DOWN;
     #ifdef mqtt
       //
-      publish(STATE_TOPIC, state);
+      publish(STATE_TOPIC, STATES_STRING[state]);
     #endif    
   }
   //dump pellets into flame box with timed auger runs
@@ -704,7 +712,7 @@ void proc_heating() {
       runFan = true;
       #ifdef mqtt
         //
-        publish(STATE_TOPIC, state);
+        publish(STATE_TOPIC, STATES_STRING[state]);
       #endif    
       state_trans_start = 0;
     }else {//else keep coming back to check
@@ -724,7 +732,7 @@ void proc_heating() {
       state = STATE_COOL_DOWN;
       #ifdef mqtt
         //
-        publish(STATE_TOPIC, state);
+        publish(STATE_TOPIC, STATES_STRING[state]);
       #endif
     }
   }
@@ -770,7 +778,7 @@ void cool_to_stop(int target_state) {
         state = target_state;
         #ifdef mqtt
           //
-          publish(STATE_TOPIC, state);
+          publish(STATE_TOPIC, STATES_STRING[state]);
         #endif   
         state_trans_start = 0;
       } //else keep coming back to check 
@@ -822,7 +830,7 @@ void proc_cool_down() {
       state = STATE_HEATING;
       #ifdef mqtt
         //
-        publish(STATE_TOPIC, state);
+        publish(STATE_TOPIC, STATES_STRING[state]);
       #endif      
     }
     if (digitalRead(DZ_PIN) == HIGH) {
@@ -858,7 +866,7 @@ void proc_error() {
       state = STATE_OFF;
       #ifdef mqtt
         //
-        publish(STATE_TOPIC, state);
+        publish(STATE_TOPIC, STATES_STRING[state]);
       #endif      
       //delay(10);
     }else {
@@ -899,7 +907,7 @@ void proc_off() {
       reason = "";
       #ifdef mqtt
         //
-        publish(STATE_TOPIC, state);
+        publish(STATE_TOPIC, STATES_STRING[state]);
         publish_message(reason); //clear error register
       #endif    
       start_count = 0;  
@@ -922,7 +930,7 @@ void safety() {
     state = STATE_COOL_DOWN;
     #ifdef mqtt
       //
-      publish(STATE_TOPIC, state);
+      publish(STATE_TOPIC, STATES_STRING[state]);
     #endif    
   }
   //if auger too hot go into error
@@ -933,7 +941,7 @@ void safety() {
     #ifdef mqtt
       //
       publish_message(reason);
-      publish(STATE_TOPIC, state);
+      publish(STATE_TOPIC, STATES_STRING[state]);
       reason = "";
     #endif    
     #ifdef debug
@@ -953,7 +961,7 @@ void loop() {
       state = STATE_COOL_DOWN;
       #ifdef mqtt
         //
-        publish(STATE_TOPIC, state);
+        publish(STATE_TOPIC, STATES_STRING[state]);
       #endif  
     }else {
       //do nothing i guess
@@ -969,14 +977,14 @@ void loop() {
         state = STATE_IDLE;
         #ifdef mqtt
           //
-          publish(STATE_TOPIC, state);
+          publish(STATE_TOPIC, STATES_STRING[state]);
         #endif        
       }else {
         state = STATE_OFF;
         first_loop = true;
         #ifdef mqtt
           //
-          publish(STATE_TOPIC, state);
+          publish(STATE_TOPIC, STATES_STRING[state]);
         #endif        
       }
       debounce_start = 0;
@@ -997,7 +1005,7 @@ void loop() {
       first_loop = true;
       #ifdef mqtt
         //
-        publish(STATE_TOPIC, state);
+        publish(STATE_TOPIC, STATES_STRING[state]);
       #endif        
       //delay(10);
     }
@@ -1025,28 +1033,32 @@ void loop() {
   }
   #ifdef debug
     Serial.print("State = ");
-    Serial.println(state);
+    Serial.println(STATES_STRING[state]);
   #endif 
   if (stringComplete){
     inputString = "";
     stringComplete = false;
   }
   #ifdef mqtt
-  int thisThing = 0;
   int mosqPayload[] = {water_temp, auger_temp, flame_val, state, power, feed_percent, feed_pause_percent};
   String mosqTop[] = {WATER_TEMP_TOPIC, AUGER_TEMP_TOPIC, FLAME_TOPIC, STATE_TOPIC, PID_FAN, PID_FEED, PID_PAUSE};
+  
 
     if ((state == STATE_START_UP) or (state == STATE_HEATING) or (state == STATE_COOL_DOWN)) { //publish messages
       //publish everything in a round robin fashion
       unsigned long currentMillis = millis();
       if(currentMillis - previousMillis > PUB_INTERVAL) { //publish info
         previousMillis = currentMillis;  
-        if (thisThing < 6 ) {
-          thisThing++; 
+        if (index < 6 ) {
+          index++; 
         }else {
-          thisThing = 0;
+          index = 0;
         }
-        publish(mosqTop[thisThing], mosqPayload[thisThing]);
+        if (index==3){
+         publish(mosqTop[index], STATES_STRING[state]);
+        }else{
+          publish(mosqTop[index], mosqPayload[index]);
+        }
       }
     }
 
