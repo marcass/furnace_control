@@ -43,8 +43,8 @@ const int HIGH_TEMP = 75; //deg C -> high end of heating range
 const int MID_TEMP = 60;//TEST68; //Send back to heating if over heats form here
 const int TOO_HOT_TEMP = 85; //cool down NOW
 const int AUGER_OVER_TEMP = 55; //deg C - don't want a hopper fire
-const long START_FAN_TIME = 45000; //45s in ms for time to blow to see if flame present
-const long END_FAN_TIME = 480000; //6min of blow to empty puck from burn box
+const long START_FAN_TIME = 65000; //65s in ms for time to blow to see if flame present
+const long END_FAN_TIME = 360000; //6min of blow to empty puck from burn box
 const int FLAME_VAL_THRESHOLD = 120;//work out a value here that is reasonable
 const int START_FLAME = 80;
 const long PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
@@ -55,6 +55,7 @@ const long STATE_CHANGE_THRES = 5000;
 const long STOP_THRESH = 5000; //for  fan short cycling
 const long ERROR_THRES = 10000;
 long RESET_THRESHOLD = 300000;
+const int FLAME_READ_INTERVAL = 10;
 
 
 #ifdef mqtt
@@ -114,6 +115,13 @@ int counts;
 unsigned long state_trans_start = 0;
 unsigned long stop_start = 0; //for  fan short cycling
 unsigned long error_timer = 0; //for dropping inot error in start loop
+//reading flame value stuff and smoothing
+unsigned long prevMillis;
+const int numReadings = 10;
+int readings[numReadings];      // the readings from the light sensor
+int readIndex = 0;              // the index of the current reading
+int total = 0;
+
 
 //I expect that code will alter these values in future
 unsigned long start_feed_time = 0;
@@ -195,7 +203,7 @@ void setup() {
   digitalWrite(ELEMENT, LOW);
   pinMode(DZ_SUPPLY, OUTPUT);
   digitalWrite(DZ_SUPPLY, LOW);
-  digitalWrite(A2, LOW);
+  //digitalWrite(A2, LOW);
   //Initialise inputs
   pinMode(DZ_PIN, INPUT_PULLUP);
   pinMode(BUTTON_1, INPUT_PULLUP);
@@ -428,6 +436,32 @@ void proc_idle() {
   }
 }
 
+//flame value smoothing
+void flame_val_average() {
+  unsigned long currentMillis = millis();
+  if(currentMillis - prevMillis > FLAME_READ_INTERVAL) { //publish info
+    prevMillis = currentMillis; 
+    
+    // subtract the last reading:
+    total = total - readings[readIndex];
+    // read from the sensor:
+    readings[readIndex] = analogRead(LIGHT);
+    // add the reading to the total:
+    total = total + readings[readIndex];
+    // advance to the next position in the array:
+    readIndex = readIndex + 1;
+  
+    // if we're at the end of the array...
+    if (readIndex >= numReadings) {
+      // ...wrap around to the beginning:
+      readIndex = 0;
+    }
+  }
+
+  // calculate the average:
+  flame_val = total / numReadings;
+}
+
 void going_yet() {
   /*startup sequence
    * 1. check to see if heaps of light -> heating
@@ -435,7 +469,7 @@ void going_yet() {
    * 3. if no light -> pellet dump and element start then go to 1
    */
   //read light in firebox
-  flame_val = analogRead(LIGHT);
+  //flame_val = analogRead(LIGHT);
   if (flame_val > FLAME_VAL_THRESHOLD) { //if plenty of light go to heating
     if (state_trans_start == 0) { //smooth state transitions
       state_trans_start = millis();
@@ -701,7 +735,7 @@ void proc_heating() {
   }
   //dump pellets into flame box with timed auger runs
   //run the fan. 
-  flame_val = analogRead(LIGHT);
+  //flame_val = analogRead(LIGHT);
   //If not enough flame start again
   if (flame_val < FLAME_VAL_THRESHOLD) {
     if (state_trans_start == 0) { //smooth state transitions
@@ -753,17 +787,18 @@ void cool_to_stop(int target_state) {
   #ifdef debug
     Serial.print("  Cooling down as all off  ");
   #endif 
+  //if fire continue fanning
+  if (flame_val > START_FLAME) {
+      fan_start = 0; //still have light so reset final blow
+    }
   //Keep pumping heat into house until boiler cool
-  if (water_temp < LOW_TEMP){
+  if (water_temp < MID_TEMP){
     pump(false);
     #ifdef debug
       Serial.print(" Pump off ");
     #endif
     if (fan_start == 0) {
       fan_start = millis();
-    }
-    if (flame_val > START_FLAME) {
-      fan_start = 0; //still have light so reset final blow
     }
     if (millis() - fan_start > END_FAN_TIME) { 
       stop_fan(); //puck blown to peices, clean grate for next light
@@ -802,7 +837,7 @@ void proc_cool_down() {
    */
   digitalWrite(AUGER, LOW);
   digitalWrite(ELEMENT, LOW);
-  flame_val = analogRead(LIGHT);
+  //flame_val = analogRead(LIGHT);
   if (water_temp > TOO_HOT_TEMP) {
     cool_to_stop(STATE_ERROR);
     reason = "Too hot";
@@ -1045,6 +1080,8 @@ void loop() {
   
 
     if ((state == STATE_START_UP) or (state == STATE_HEATING) or (state == STATE_COOL_DOWN)) { //publish messages
+      //get flame_val average
+      flame_val_average();
       //publish everything in a round robin fashion
       unsigned long currentMillis = millis();
       if(currentMillis - previousMillis > PUB_INTERVAL) { //publish info
