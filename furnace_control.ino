@@ -58,17 +58,9 @@ long RESET_THRESHOLD = 300000;
 
 
 #ifdef mqtt
-  long PUB_INTERVAL = 1000;
-  long PUB_INTERVAL_STATE = 10000;
+  long PUB_INTERVAL = 250;
   long previousMillis = 0;
   const long PUB_INT = 60000; //publish values every minute
-//  const int STATE_PUB = 3;
-//  const int WATER_TEMP_PUB = 0;
-//  const int AUGER_TEMP_PUB = 1;
-//  const int FLAME_PUB = 2;
-//  const int ERROR_PUB = 4;
-  int thisSens = 0;
-  int sensorPayload[] = {water_temp, auger_temp, flame_val, state};
   String STATE_TOPIC = "boiler/state";
   String WATER_TEMP_TOPIC = "boiler/temp/water";
   String AUGER_TEMP_TOPIC = "boiler/temp/auger";
@@ -77,9 +69,7 @@ long RESET_THRESHOLD = 300000;
   String PID_FAN = "boiler/pid/fan";
   String PID_FEED = "boiler/pid/feed";
   String PID_PAUSE = "boiler/pid/pause";
-  String dataTop[] = {WATER_TEMP_TOPIC, AUGER_TEMP_TOPIC, FLAME_TOPIC, STATE_TOPIC};
-  int pidPayload[] = {power, feed_percent, feed_pause_percent};
-  String pidTop[] = {PID_FAN, PID_FEED, PID_PAUSE};
+  
 #endif
 
 //States
@@ -302,15 +292,17 @@ void setup() {
 //    Serial.print("/");
 //    Serial.println(payload);
 //  }
-  void publish(int top, int payload) { //publish data
+  void publish(String top,int payload) { //publish data
     Serial.print("MQTT:");
     Serial.print(top);
     Serial.print("/");
     Serial.println(payload);
   }
 
-  void publish_message(int top, String payload) {
-    
+  void publish_message(String message) {
+    Serial.print("MQTT:");
+    Serial.print("boiler/messages/");
+    Serial.println(message);
   }
 #endif
 
@@ -419,8 +411,8 @@ void proc_idle() {
     reason = "";
     #ifdef mqtt
       //
-      publish(STATE_PUB);
-      publish(ERROR_PUB); //clear error register
+      publish(STATE_TOPIC, state);
+      publish_message(reason); //clear error register
     #endif
   }else {
     //twiddle thumbs
@@ -444,7 +436,7 @@ void going_yet() {
       state = STATE_HEATING;
       #ifdef mqtt
         //
-        publish(STATE_PUB);
+        publish(STATE_TOPIC, state);
       #endif    
       fan_start = 0;
       element_start = 0;
@@ -481,8 +473,8 @@ void proc_start_up() {
       reason = "failed to start";
       #ifdef mqtt
         //
-        publish(ERROR_PUB);
-        publish(STATE_PUB);
+        publish_message(reason);
+        publish(STATE_TOPIC, state);
         reason = "";
         error_timer = 0;
       #endif
@@ -590,7 +582,7 @@ void fan_and_pellet_management() {
     state = STATE_COOL_DOWN;
     #ifdef mqtt
       //
-      publish(STATE_PUB);
+      publish(STATE_TOPIC, state);
     #endif    
   }else {
     #ifdef no_PID
@@ -696,7 +688,7 @@ void proc_heating() {
     state = STATE_COOL_DOWN;
     #ifdef mqtt
       //
-      publish(STATE_PUB);
+      publish(STATE_TOPIC, state);
     #endif    
   }
   //dump pellets into flame box with timed auger runs
@@ -712,7 +704,7 @@ void proc_heating() {
       runFan = true;
       #ifdef mqtt
         //
-        publish(STATE_PUB);
+        publish(STATE_TOPIC, state);
       #endif    
       state_trans_start = 0;
     }else {//else keep coming back to check
@@ -732,7 +724,7 @@ void proc_heating() {
       state = STATE_COOL_DOWN;
       #ifdef mqtt
         //
-        publish(STATE_PUB);
+        publish(STATE_TOPIC, state);
       #endif
     }
   }
@@ -778,7 +770,7 @@ void cool_to_stop(int target_state) {
         state = target_state;
         #ifdef mqtt
           //
-          publish(STATE_PUB);
+          publish(STATE_TOPIC, state);
         #endif   
         state_trans_start = 0;
       } //else keep coming back to check 
@@ -808,7 +800,7 @@ void proc_cool_down() {
     reason = "Too hot";
     #ifdef mqtt
       //
-      publish(ERROR_PUB);
+      publish_message(reason);
       reason = "";
     #endif 
   }
@@ -830,7 +822,7 @@ void proc_cool_down() {
       state = STATE_HEATING;
       #ifdef mqtt
         //
-        publish(STATE_PUB);
+        publish(STATE_TOPIC, state);
       #endif      
     }
     if (digitalRead(DZ_PIN) == HIGH) {
@@ -866,13 +858,13 @@ void proc_error() {
       state = STATE_OFF;
       #ifdef mqtt
         //
-        publish(STATE_PUB);
+        publish(STATE_TOPIC, state);
       #endif      
       //delay(10);
     }else {
       reason = inputString;
       #ifdef mqtt
-        publish(ERROR_PUB); //dump message so we can see how it was malformed
+        publish_message(reason); //dump message so we can see how it was malformed
       #endif
       reason = "";
       inputString = "";
@@ -907,15 +899,15 @@ void proc_off() {
       reason = "";
       #ifdef mqtt
         //
-        publish(STATE_PUB);
-        publish(ERROR_PUB); //clear error register
+        publish(STATE_TOPIC, state);
+        publish_message(reason); //clear error register
       #endif    
       start_count = 0;  
       //delay(10);
     }else {
       reason = inputString;
       #ifdef mqtt
-        publish(ERROR_PUB); //dump message so we can see how it was malformed
+        publish_message(reason); //dump message so we can see how it was malformed
       #endif
       reason = "";
       inputString = "";
@@ -930,7 +922,7 @@ void safety() {
     state = STATE_COOL_DOWN;
     #ifdef mqtt
       //
-      publish(STATE_PUB);
+      publish(STATE_TOPIC, state);
     #endif    
   }
   //if auger too hot go into error
@@ -940,8 +932,8 @@ void safety() {
     reason = "Auger too hot";
     #ifdef mqtt
       //
-      publish(ERROR_PUB);
-      publish(STATE_PUB);
+      publish_message(reason);
+      publish(STATE_TOPIC, state);
       reason = "";
     #endif    
     #ifdef debug
@@ -961,7 +953,7 @@ void loop() {
       state = STATE_COOL_DOWN;
       #ifdef mqtt
         //
-        publish(STATE_PUB);
+        publish(STATE_TOPIC, state);
       #endif  
     }else {
       //do nothing i guess
@@ -977,14 +969,14 @@ void loop() {
         state = STATE_IDLE;
         #ifdef mqtt
           //
-          publish(STATE_PUB);
+          publish(STATE_TOPIC, state);
         #endif        
       }else {
         state = STATE_OFF;
         first_loop = true;
         #ifdef mqtt
           //
-          publish(STATE_PUB);
+          publish(STATE_TOPIC, state);
         #endif        
       }
       debounce_start = 0;
@@ -1005,7 +997,7 @@ void loop() {
       first_loop = true;
       #ifdef mqtt
         //
-        publish(STATE_PUB);
+        publish(STATE_TOPIC, state);
       #endif        
       //delay(10);
     }
@@ -1040,25 +1032,24 @@ void loop() {
     stringComplete = false;
   }
   #ifdef mqtt
+  int thisThing = 0;
+  int mosqPayload[] = {water_temp, auger_temp, flame_val, state, power, feed_percent, feed_pause_percent};
+  String mosqTop[] = {WATER_TEMP_TOPIC, AUGER_TEMP_TOPIC, FLAME_TOPIC, STATE_TOPIC, PID_FAN, PID_FEED, PID_PAUSE};
+
     if ((state == STATE_START_UP) or (state == STATE_HEATING) or (state == STATE_COOL_DOWN)) { //publish messages
+      //publish everything in a round robin fashion
       unsigned long currentMillis = millis();
-      if(currentMillis - previousMillis > PUB_INTERVAL) { //publish temp data and topic data
+      if(currentMillis - previousMillis > PUB_INTERVAL) { //publish info
         previousMillis = currentMillis;  
-        if (thisSens < 4 ) {//0-2 are sensors, 3 is state
-          thisSens++; 
+        if (thisThing < 6 ) {
+          thisThing++; 
         }else {
-          thisSens = 0;
+          thisThing = 0;
         }
-        publish(sensorPub[thisSens]);
+        publish(mosqTop[thisThing], mosqPayload[thisThing]);
       }
     }
-    if (state != STATE_OFF) {
-      unsigned long currentMillis1 = millis();
-      if(currentMillis1 - previousMillis > PUB_INTERVAL_STATE) {
-        previousMillis = currentMillis1;  
-        publish(STATE_PUB);
-      }
-    }
+
   #endif
     #ifdef ac_counter
       if (crosses > 60) {
