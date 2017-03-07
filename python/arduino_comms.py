@@ -44,6 +44,10 @@ auth = {'username':"esp", 'password':"heating"}
 
 if __name__ == "__main__":
     #keep checking for port with a timeout of 5 seconds
+    # need to modify to a threading thingy? https://docs.python.org/3/library/threading.html#event-objects
+    #if an event object can run a thread that checks for serial port /dev/arduino, set() internal
+    # flag to true such that subscription stuff can start, or clear() when port not available
+    # so it can keep checking
     try:
         ser = serial.Serial("/dev/ttyUSB0", baudrate=9600, timeout=5.0)        
         #ser = serial.Serial("/dev/arduino", baudrate=9600, timeout=5.0) 
