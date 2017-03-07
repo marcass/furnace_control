@@ -17,7 +17,6 @@
 //#define lcd //interferes with interrupts?
 //#define fan
 
-
 //Libraries
 //#include <Wire.h>
 //#ifdef lcd
@@ -32,6 +31,7 @@
 //for ac phase angle stuff
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include "FastRunningMedian.h" //for getting flame val median http://forum.arduino.cc/index.php?topic=53081.msg1160999#msg1160999
 
 /*******************************************************************************
  * Constants
@@ -130,6 +130,13 @@ float divisor;
 String reason = "";
 int state;
 //reading flame value stuff and smoothing
+FastRunningMedian<int, 10, 1> newMedian;
+// Constructor: 
+// FastRunningMedian<datatype_of_content, size_of_sliding_window, default_value> 
+// maximim size_of_sliding_window is 255
+// Methods:
+// addValue(val) adds a new value to the buffers (and kicks the oldest)
+// getMedian() returns the current median value
 unsigned long prevMillis;
 const int numReadings = 10;
 int readings[numReadings];      // the readings from the light sensor
@@ -313,14 +320,6 @@ void setup() {
   #endif
 }
 
-
-
-
-
-
-
-
-
 void run_fan(int x) {
   if (x == 100) { //no phase angle control needed if you want balls out fan speed
     digitalWrite(GATE,HIGH);
@@ -403,30 +402,40 @@ void pump(bool on) { //prevents short cycling of pump
 }
 
 //flame value smoothing TO STOP CRAZY STATE CHANGES
-void flame_val_average() {
-  unsigned long currentMillis = millis();
-  if(currentMillis - prevMillis > FLAME_READ_INTERVAL) { //publish info
-    prevMillis = currentMillis; 
-    
-    // subtract the last reading:
-    total = total - readings[readIndex];
-    // read from the sensor:
-    readings[readIndex] = analogRead(LIGHT);
-    // add the reading to the total:
-    total = total + readings[readIndex];
-    // advance to the next position in the array:
-    readIndex = readIndex + 1;
-  
-    // if we're at the end of the array...
-    if (readIndex >= numReadings) {
-      // ...wrap around to the beginning:
-      readIndex = 0;
-    }
-  }
-
-  // calculate the average:
-  flame_val = total / numReadings;
+//void flame_val_average() {
+//  unsigned long currentMillis = millis();
+//  if(currentMillis - prevMillis > FLAME_READ_INTERVAL) { //publish info
+//    prevMillis = currentMillis; 
+//    
+//    // subtract the last reading:
+//    total = total - readings[readIndex];
+//    // read from the sensor:
+//    readings[readIndex] = analogRead(LIGHT);
+//    // add the reading to the total:
+//    total = total + readings[readIndex];
+//    // advance to the next position in the array:
+//    readIndex = readIndex + 1;
+//  
+//    // if we're at the end of the array...
+//    if (readIndex >= numReadings) {
+//      // ...wrap around to the beginning:
+//      readIndex = 0;
+//    }
+//  }
+//
+//  // calculate the average:
+//  flame_val = total / numReadings;
 }
+
+void flame_value_median() {
+  unsigned long currentMillis = millis();
+  if(currentMillis - prevMillis > FLAME_READ_INTERVAL) { 
+    prevMillis = currentMillis; 
+    newMedian.addValue(analogRead(LIGHT));
+    flame_val = newMedian.getMedian();
+  }
+}
+
 
 void fan_and_pellet_management() {
   //water temp measured in safety()
@@ -1029,7 +1038,7 @@ void loop() {
   #ifdef mqtt
     if ((state == STATE_START_UP) or (state == STATE_HEATING) or (state == STATE_COOL_DOWN)) { //publish messages
       //get flame_val average
-      flame_val_average();
+      flame_value_median();
       //publish everything in a round robin fashion
       unsigned long currentMillis = millis();
       if(currentMillis - previousMillis > PUB_INTERVAL) { //publish info
