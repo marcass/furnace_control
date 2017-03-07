@@ -190,8 +190,7 @@ int total = 0;
   String PID_FEED = "boiler/pid/feed";
   String PID_PAUSE = "boiler/pid/pause";
   const String STATES_STRING[] = {"Idle","Starting","Heating","Cool down","Error","Off"};
-  int mosqPayload[] = {water_temp, auger_temp, flame_val, state, power, feed_percent, feed_pause_percent};
-  const String mosqTop[] = {WATER_TEMP_TOPIC, AUGER_TEMP_TOPIC, FLAME_TOPIC, STATE_TOPIC, PID_FAN, PID_FEED, PID_PAUSE};
+  
   //publish functions overloaded for int/string as payload
   void publish(String top,int payload) { //publish data
     Serial.print("MQTT:");
@@ -205,11 +204,11 @@ int total = 0;
     Serial.print("/");
     Serial.println(payload);
   } 
-  
 
-//  void publish_message(String message) {
+//  void publish_message(String top, String message) {
 //    Serial.print("MQTT:");
-//    Serial.print("boiler/messages/");
+//    Serial.print(top);
+//    Serial.print("/");
 //    Serial.println(message);
 //  }
 #endif
@@ -425,7 +424,7 @@ void pump(bool on) { //prevents short cycling of pump
 //
 //  // calculate the average:
 //  flame_val = total / numReadings;
-}
+//}
 
 void flame_value_median() {
   unsigned long currentMillis = millis();
@@ -1039,6 +1038,8 @@ void loop() {
     if ((state == STATE_START_UP) or (state == STATE_HEATING) or (state == STATE_COOL_DOWN)) { //publish messages
       //get flame_val average
       flame_value_median();
+      int mosqPayload[] = {water_temp, auger_temp, flame_val, state, power, feed_percent, feed_pause_percent};
+      const String mosqTop[] = {WATER_TEMP_TOPIC, AUGER_TEMP_TOPIC, FLAME_TOPIC, STATE_TOPIC, PID_FAN, PID_FEED, PID_PAUSE};
       //publish everything in a round robin fashion
       unsigned long currentMillis = millis();
       if(currentMillis - previousMillis > PUB_INTERVAL) { //publish info
@@ -1056,17 +1057,18 @@ void loop() {
       }
     }else { //publish temp, pause for PUB_INTERVAL_IDLE, publish state, pause for PUB_INTERVAL_IDLE, publish temp etc
       unsigned long currentMillis = millis();
+      
       if (index > 1) {//set it to value for publishing if was in higher value from prev on state
         index = 0;
       }
       if(currentMillis - previousMillis > PUB_INTERVAL_IDLE) { //publish info
         previousMillis = currentMillis;
         if (index < 1) { 
-          publish(mosqTop[0], mosqPayload[0]);//water temp in first member of arrays
+          publish(WATER_TEMP_TOPIC, water_temp);//water temp in first member of arrays
           index++;
         }
         if (index == 1) {
-          publish(mosqTop[3], STATES_STRING[state]);
+          publish(STATE_TOPIC, STATES_STRING[state]);
           index = 0;
         }
       }

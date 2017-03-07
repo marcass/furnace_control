@@ -65,7 +65,7 @@ if __name__ == "__main__":
             client.loop_start()
             while True:
                 #for debugging enable printing of serial port data
-                rcv = readlineCR(port)
+                rcv = readlineCR(ser)
                 #print rcv
         
         #no serial port available
@@ -74,4 +74,4 @@ if __name__ == "__main__":
 
     #exception handling
     except serial.serialutil.SerialException:
-        print 'exception
+        print 'exception'
