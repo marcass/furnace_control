@@ -39,6 +39,7 @@
 //timers
 const long ELEMENT_TIME = 360000; //6min in ms
 const long START_FEED_TIME = 130000; //2min 10s in ms for pellet feed initially (includes little predump)
+const long SUBSEQUENT_START_FEED_TIME = 10000; //little top up of pellets if not starting first time
 const long START_FAN_TIME = 65000; //65s in ms for time to blow to see if flame present
 //const long DUMP_START = 45000;//45s of fanning before throwing a little fuel on the fire
 const long END_FAN_TIME = 360000; //6min of blow to empty puck from burn box
@@ -632,7 +633,7 @@ void proc_start_up() {
     Serial.print("  ");
   #endif
   if (runFan) {
-    run_fan(50);
+    run_fan(100);
   }else {
     stop_fan(); //fucking fan keeps turning on
   }
@@ -658,7 +659,19 @@ void proc_start_up() {
         auger_start = millis();
         
       }
-      if (millis() - auger_start > START_FEED_TIME) {
+      if (start_count == 1) {
+        if (millis() - auger_start > START_FEED_TIME) {
+          //stop feeding pellets
+          digitalWrite(AUGER, LOW);
+          dump = false;
+          elem = true;
+          #ifdef debug
+            Serial.print("  Auger off  ");
+          #endif
+        }
+      }
+      if (start_count > 1) { //don't want to overload pellet chamber
+        if (millis() - auger_start > START_FEED_TIME) {
         //stop feeding pellets
         digitalWrite(AUGER, LOW);
         dump = false;
@@ -666,14 +679,16 @@ void proc_start_up() {
         #ifdef debug
           Serial.print("  Auger off  ");
         #endif
-      }else {
-        digitalWrite(AUGER, HIGH); //dump pellets
-        runFan = false;
-        digitalWrite(ELEMENT, LOW);
-        #ifdef debug
-          Serial.print(" Auger on ");
-        #endif  
+        }
       }
+      
+      digitalWrite(AUGER, HIGH); //dump pellets
+      runFan = false;
+      digitalWrite(ELEMENT, LOW);
+      #ifdef debug
+        Serial.print(" Auger on ");
+      #endif  
+      
     }     
     if (elem) {
       if (element_start == 0) { //start element timer if not already started
