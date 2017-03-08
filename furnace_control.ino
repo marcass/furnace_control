@@ -40,6 +40,7 @@
 const long ELEMENT_TIME = 360000; //6min in ms
 const long START_FEED_TIME = 110000; //2min 10s in ms for pellet feed initially
 const long START_FAN_TIME = 65000; //65s in ms for time to blow to see if flame present
+const long DUMP_START = 45000;//45s of fanning before throwing a little fuel on the fire
 const long END_FAN_TIME = 360000; //6min of blow to empty puck from burn box
 const long PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
 const int BUTTON_ON_THRESHOLD = 1500;//1.5s in ms for turning from off to idle and vice versa
@@ -181,6 +182,7 @@ int total = 0;
   const long PUB_INTERVAL_IDLE = 30000; //publish state info and temp info for logging while not running
   int index = 0; //counter for cycling through publishing array
   //topics
+  int fan_power; //what fan is actually running at
   String STATE_TOPIC = "boiler/state";
   String WATER_TEMP_TOPIC = "boiler/temp/water";
   String AUGER_TEMP_TOPIC = "boiler/temp/auger";
@@ -204,13 +206,6 @@ int total = 0;
     Serial.print("/");
     Serial.println(payload);
   } 
-
-//  void publish_message(String top, String message) {
-//    Serial.print("MQTT:");
-//    Serial.print(top);
-//    Serial.print("/");
-//    Serial.println(message);
-//  }
 #endif
 
 // SETUP SERIAL COMM for inputs *********************************************************
@@ -299,13 +294,8 @@ void setup() {
   TIMSK1 = 0x03;    //enable comparator A and overflow interrupts
   TCCR1A = 0x00;    //timer control registers set for
   TCCR1B = 0x00;    //normal operation, timer disabled
-
-
   // set up zero crossing interrupt
-  attachInterrupt(0,zeroCrossingInterrupt, RISING);    
-    //IRQ0 is pin 2. Call zeroCrossingInterrupt 
-    //on rising signal
-  
+  attachInterrupt(0,zeroCrossingInterrupt, RISING); //IRQ0 is pin 2. Call zeroCrossingInterrupt 
   // initialize serial communication:
   Serial.begin(9600);//slower speed for long cable
   inputString.reserve(200); // reserve mem for received message on serial port 
@@ -320,11 +310,17 @@ void setup() {
 }
 
 void run_fan(int x) {
+  if (!runFan) {
+    runFan = true;
+  }
+  #ifdef mqtt
+    fan_power = x;
+  #endif
   if (x == 100) { //no phase angle control needed if you want balls out fan speed
     digitalWrite(GATE,HIGH);
     #ifdef debug
       Serial.print("  Fan on 100%  ");
-    #endif
+    #endif    
   }else {
     #ifdef debug
       Serial.print(" FAN ON at ");
@@ -370,6 +366,7 @@ void stop_fan() {
   }
   if (millis() - stop_start > STOP_THRESH) {
     digitalWrite(GATE,LOW);
+    runFan = false;
     #ifdef debug
       Serial.print("  Fan off  ");
     #endif 
@@ -399,32 +396,6 @@ void pump(bool on) { //prevents short cycling of pump
     }
   }
 }
-
-//flame value smoothing TO STOP CRAZY STATE CHANGES
-//void flame_val_average() {
-//  unsigned long currentMillis = millis();
-//  if(currentMillis - prevMillis > FLAME_READ_INTERVAL) { //publish info
-//    prevMillis = currentMillis; 
-//    
-//    // subtract the last reading:
-//    total = total - readings[readIndex];
-//    // read from the sensor:
-//    readings[readIndex] = analogRead(LIGHT);
-//    // add the reading to the total:
-//    total = total + readings[readIndex];
-//    // advance to the next position in the array:
-//    readIndex = readIndex + 1;
-//  
-//    // if we're at the end of the array...
-//    if (readIndex >= numReadings) {
-//      // ...wrap around to the beginning:
-//      readIndex = 0;
-//    }
-//  }
-//
-//  // calculate the average:
-//  flame_val = total / numReadings;
-//}
 
 void flame_value_median() {
   unsigned long currentMillis = millis();
@@ -600,9 +571,25 @@ void cool_to_stop(int target_state) {
   }
 }
 
+void housekeeping() {
+  if (runFan) {
+    stop_fan();
+  }
+  if (digitalRead(PUMP) == HIGH) {
+    digitalWrite(PUMP, LOW);
+  }
+  if (digitalRead(ELEMENT) == HIGH) {
+    digitalWrite(ELEMENT, LOW);
+  }
+  if (digitalRead(AUGER) == HIGH) {
+    digitalWrite(AUGER, LOW);
+  }
+}
+
 
 //state fucntions *****************************************************************
 void proc_idle() {
+  housekeeping();
   //1-wire relay gets closed by DZ3
   if (digitalRead(DZ_PIN) == LOW) {
     state = STATE_START_UP;
@@ -650,16 +637,17 @@ void proc_start_up() {
     stop_fan(); //fucking fan keeps turning on
   }
   going_yet(); //perform check in each loop
-  //start fan on count 1 of each start up to see if flames present
   if (start_count == 0) {
-    runFan = true;
+    runFan = true; //start fan on count 0 of each start up to see if flames present
     if (fan_start == 0) {
       fan_start = millis();
     }
+    if (millis() - fan_start > DUMP_START) {
+      dump = true; //throw some fuel on if no light yet
+    }
     if (millis() - fan_start > START_FAN_TIME) {
       runFan = false;
-      start_count++;
-      dump = true;
+      start_count++; //increment out of this loop
       fan_start = 0;
     }
   }
@@ -851,12 +839,11 @@ void proc_error() {
   digitalWrite(AUGER, LOW);
   digitalWrite(ELEMENT, LOW);
   //test if boiler too hot, if it is pump some water to cool it
-  water_temp = int(Thermistor(analogRead(WATER_TEMP)));
   if (water_temp > MID_TEMP) {
     //start pump
     pump(true);
   }else {
-    pump(false);
+    housekeeping();//turn everything off and keep checking it is off
   }
   //turn off if serial comms received
   if (stringComplete) {
@@ -883,7 +870,7 @@ void proc_error() {
 
 void proc_off() {
   //if too hot pump unitl not:
-  if (water_temp > LOW_TEMP) {
+  if (water_temp > MID_TEMP) {
     cool_to_stop(STATE_OFF);    
   }else if (first_loop) { //turn everthing off once
     start_count = 0;
@@ -892,11 +879,9 @@ void proc_off() {
     start_pump_time = 0;
     debounce_start = 0;
     reason = "";
-    stop_fan();
-    digitalWrite(AUGER, LOW);
-    digitalWrite(ELEMENT, LOW);
-    pump(false);
     first_loop = false;
+  }else {
+    housekeeping();//turn everything off and keep checking it is off
   }
   //turn on if serial comms received
   if (stringComplete) {
@@ -1038,7 +1023,7 @@ void loop() {
     if ((state == STATE_START_UP) or (state == STATE_HEATING) or (state == STATE_COOL_DOWN)) { //publish messages
       //get flame_val average
       flame_value_median();
-      int mosqPayload[] = {water_temp, auger_temp, flame_val, state, power, feed_percent, feed_pause_percent};
+      int mosqPayload[] = {water_temp, auger_temp, flame_val, state, fan_power, feed_percent, feed_pause_percent};
       const String mosqTop[] = {WATER_TEMP_TOPIC, AUGER_TEMP_TOPIC, FLAME_TOPIC, STATE_TOPIC, PID_FAN, PID_FEED, PID_PAUSE};
       //publish everything in a round robin fashion
       unsigned long currentMillis = millis();
