@@ -38,9 +38,9 @@
  */
 //timers
 const long ELEMENT_TIME = 360000; //6min in ms
-const long START_FEED_TIME = 110000; //2min 10s in ms for pellet feed initially (includes little predump)
+const long START_FEED_TIME = 130000; //2min 10s in ms for pellet feed initially (includes little predump)
 const long START_FAN_TIME = 65000; //65s in ms for time to blow to see if flame present
-const long DUMP_START = 45000;//45s of fanning before throwing a little fuel on the fire
+//const long DUMP_START = 45000;//45s of fanning before throwing a little fuel on the fire
 const long END_FAN_TIME = 360000; //6min of blow to empty puck from burn box
 const long PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
 const int BUTTON_ON_THRESHOLD = 1500;//1.5s in ms for turning from off to idle and vice versa
@@ -621,7 +621,7 @@ void proc_start_up() {
         error_timer = 0;
       #endif
     }
-    runFan = true; //meanwhile, fan shit    
+    //runFan = true; //meanwhile, fan shit    
   }
   //run fan if true
   #ifdef debug
@@ -642,9 +642,9 @@ void proc_start_up() {
     if (fan_start == 0) {
       fan_start = millis();
     }
-    if (millis() - fan_start > DUMP_START) {
-      digitalWrite(AUGER, HIGH); //dump pellets //throw some fuel on if no light yet
-    }
+//    if (millis() - fan_start > DUMP_START) { //keeps thee fan running Grrrr???
+//      digitalWrite(AUGER, HIGH); //dump pellets //throw some fuel on if no light yet
+//    }
     if (millis() - fan_start > START_FAN_TIME) {
       runFan = false;
       start_count++; //increment out of this loop
