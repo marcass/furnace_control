@@ -38,7 +38,7 @@
  */
 //timers
 const long ELEMENT_TIME = 360000; //6min in ms
-const long START_FEED_TIME = 110000; //2min 10s in ms for pellet feed initially
+const long START_FEED_TIME = 110000; //2min 10s in ms for pellet feed initially (includes little predump)
 const long START_FAN_TIME = 65000; //65s in ms for time to blow to see if flame present
 const long DUMP_START = 45000;//45s of fanning before throwing a little fuel on the fire
 const long END_FAN_TIME = 360000; //6min of blow to empty puck from burn box
@@ -489,7 +489,7 @@ void going_yet() {
       state_trans_start = millis();
     }
     if (millis() - state_trans_start > STATE_CHANGE_THRES) {
-      
+      digitalWrite(AUGER, LOW);
       state = STATE_HEATING;
       #ifdef mqtt
         //
@@ -632,7 +632,7 @@ void proc_start_up() {
     Serial.print("  ");
   #endif
   if (runFan) {
-    run_fan(100);
+    run_fan(50);
   }else {
     stop_fan(); //fucking fan keeps turning on
   }
@@ -643,12 +643,13 @@ void proc_start_up() {
       fan_start = millis();
     }
     if (millis() - fan_start > DUMP_START) {
-      dump = true; //throw some fuel on if no light yet
+      digitalWrite(AUGER, HIGH); //dump pellets //throw some fuel on if no light yet
     }
     if (millis() - fan_start > START_FAN_TIME) {
       runFan = false;
       start_count++; //increment out of this loop
       fan_start = 0;
+      dump = true;
     }
   }
   if (start_count > 0) {
