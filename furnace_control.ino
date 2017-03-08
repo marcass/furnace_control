@@ -523,7 +523,7 @@ void cool_to_stop(int target_state) {
   //make sure stuff stays off
   digitalWrite(AUGER, LOW);
   digitalWrite(ELEMENT, LOW);
-  if (water_temp > TEMP_SET_POINT) {
+  if (water_temp > HIGH_TEMP) {
     stop_fan();
   }else {
     run_fan(100);
@@ -565,7 +565,7 @@ void cool_to_stop(int target_state) {
   }else {
     //start pump to dump heat
     pump(true);
-    
+    fan_start = 0;//reset fan timer 
     #ifdef debug
       Serial.print("  Pump on  ");
     #endif  
@@ -823,7 +823,8 @@ void proc_cool_down() {
     #ifdef debug
       Serial.println("Fan, auger and element off, pump on TOO HOT");
     #endif    
-  }else if (water_temp > MID_TEMP) {
+  }
+  if (water_temp > MID_TEMP) {
     pump(true);
     run_fan(50); //gentle blow to keep things ticking over
   }
