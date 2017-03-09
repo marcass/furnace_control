@@ -51,7 +51,7 @@ const long STATE_CHANGE_THRES = 5000;//time that needs to elapse before changing
 const long STOP_THRESH = 5000; //for  fan short cycling
 const long ERROR_THRES = 5000;//time that must elapse before goes into error at startup (not working at present)
 const long RESET_THRESHOLD = 300000; //time that must elapse before start count gets reset
-const int FLAME_READ_INTERVAL = 10; //read flame val every 10ms to build array for calculating average value (smoothing)
+const int FLAME_READ_INTERVAL = 30; //read flame val every 30ms to build array for calculating average value (smoothing)
 //temps
 const int LOW_TEMP = 50; //deg C -> low end of heating range
 const int HIGH_TEMP = 75; //deg C -> high end of heating range
@@ -132,7 +132,7 @@ float divisor;
 String reason = "";
 int state;
 //reading flame value stuff and smoothing
-FastRunningMedian<int, 10, 1> newMedian;
+FastRunningMedian<int, 32, 1> newMedian;
 // Constructor: 
 // FastRunningMedian<datatype_of_content, size_of_sliding_window, default_value> 
 // maximim size_of_sliding_window is 255
@@ -140,10 +140,10 @@ FastRunningMedian<int, 10, 1> newMedian;
 // addValue(val) adds a new value to the buffers (and kicks the oldest)
 // getMedian() returns the current median value
 unsigned long prevMillis;
-const int numReadings = 10;
-int readings[numReadings];      // the readings from the light sensor
-int readIndex = 0;              // the index of the current reading
-int total = 0;
+//const int numReadings = 10;
+//int readings[numReadings];      // the readings from the light sensor
+//int readIndex = 0;              // the index of the current reading
+//int total = 0;
 
 /****************************************************************************************
  * PID
