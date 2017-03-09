@@ -5,7 +5,20 @@ import paho.mqtt.publish as publish
 import threading
 import logging
 
+class Port(object):
+    #set up a port class
 
+    def __init__(self, baudrate, port, timeout):
+        #return a specified port for communication
+        self.baudrate = baudrate
+        self.port = port
+        self.timeout = timeout
+
+    def test(self):
+        try:
+            self.open()
+        except:
+            print 'arduino not available'
 #setup detail about serial port
 ser = serial.Serial()
 ser.baudrate = 9600
