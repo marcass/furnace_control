@@ -17,8 +17,11 @@ class Port(object):
     def test(self):
         try:
             self.open()
+            
         except:
             print 'arduino not available'
+            sleep(5)
+
 #setup detail about serial port
 ser = serial.Serial()
 ser.baudrate = 9600
