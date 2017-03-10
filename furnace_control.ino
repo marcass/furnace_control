@@ -38,9 +38,9 @@
  */
 //timers
 const long ELEMENT_TIME = 360000; //6min in ms
-const long START_FEED_TIME = 130000; //2min 10s in ms for pellet feed initially (includes little predump)
+const long START_FEED_TIME = 110000; //2min 10s in ms for pellet feed initially (includes little predump)
 const long SUBSEQUENT_START_FEED_TIME = 10000; //little top up of pellets if not starting first time
-const long START_FAN_TIME = 65000; //65s in ms for time to blow to see if flame present
+const long START_FAN_TIME = 90000; //90s in ms for time to blow to see if flame present
 //const long DUMP_START = 45000;//45s of fanning before throwing a little fuel on the fire
 const long END_FAN_TIME = 360000; //6min of blow to empty puck from burn box
 const long PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
@@ -102,6 +102,7 @@ unsigned long auger_start = 0;
 unsigned long auger_time;
 unsigned long reset_start_count_timer;
 unsigned long state_trans_start = 0;
+unsigned long state_trans_stop = 0;
 unsigned long stop_start = 0; //for  fan short cycling
 unsigned long error_timer = 0; //for dropping inot error in start loop
 unsigned long start_feed_time = 0;//pellets
@@ -123,7 +124,6 @@ bool feeding = true;
 bool cooling = false;
 bool dump = false;
 bool elem = false;
-bool first_loop = true; //first off loop
 bool runFan;
 //maths
 int proportion;
@@ -513,9 +513,9 @@ void going_yet() {
       runFan = false;
       dump = true;
       fan_start = 0;
-    }else {
-      state_trans_start = 0; //not enough flame for state trans so reset timer
     }
+  }else {
+     state_trans_start = 0; //not enough flame for state trans so reset timer
   }
 }
 
@@ -551,7 +551,6 @@ void cool_to_stop(int target_state) {
       }
       if (millis() - state_trans_start > STATE_CHANGE_THRES) {
         if (target_state == STATE_OFF) {
-        first_loop = true;
         start_count = 0;
         }
         state = target_state;
@@ -560,6 +559,7 @@ void cool_to_stop(int target_state) {
           publish(STATE_TOPIC, STATES_STRING[state]);
         #endif   
         state_trans_start = 0;
+        fan_start = 0;
       } //else keep coming back to check 
     } 
   }else {
@@ -595,8 +595,10 @@ void proc_idle() {
   if (digitalRead(DZ_PIN) == LOW) {
     state = STATE_START_UP;
     runFan = true;
+    fan_start = 0;
     reason = "";
     #ifdef mqtt
+    dump = false;
       //
       publish(STATE_TOPIC, STATES_STRING[state]);
       publish(ERROR_TOPIC, reason); //clear error register
@@ -671,7 +673,7 @@ void proc_start_up() {
         }
       }
       if (start_count > 1) { //don't want to overload pellet chamber
-        if (millis() - auger_start > START_FEED_TIME) {
+        if (millis() - auger_start > SUBSEQUENT_START_FEED_TIME) {
         //stop feeding pellets
         digitalWrite(AUGER, LOW);
         dump = false;
@@ -713,6 +715,7 @@ void proc_start_up() {
           start_count++;
           elem = false;
           dump = true;
+          fan_start = 0;
         }
       }else {
         digitalWrite(ELEMENT, HIGH); //start element
@@ -767,14 +770,23 @@ void proc_heating() {
     if (millis() - state_trans_start > STATE_CHANGE_THRES) {
       state = STATE_START_UP;
       runFan = true;
+      dump = false;
       #ifdef mqtt
         //
         publish(STATE_TOPIC, STATES_STRING[state]);
       #endif    
       state_trans_start = 0;
-    }else {//else keep coming back to check
-      state_trans_start = 0; //enough flame for to remain in state so reset timer
+    }else { //start a counter to reset state_trans_start
+      if (state_trans_stop == 0) {
+        state_trans_stop = millis();
+      }
+      if (millis() - state_trans_stop > STATE_CHANGE_THRES) {
+        state_trans_start = 0;
+      }
     }
+//    else {//else keep coming back to check
+//      //state_trans_start = 0; //enough flame for to remain in state so reset timer
+//    }
   }
   fan_and_pellet_management();
   //pump water when it is in the bands
@@ -832,7 +844,8 @@ void proc_cool_down() {
   if (water_temp < MID_TEMP) {
     if (digitalRead(DZ_PIN) == LOW) {
       //get back to heating
-      state = STATE_HEATING;
+      fan_start = 0;
+      state = STATE_START_UP;
       #ifdef mqtt
         //
         publish(STATE_TOPIC, STATES_STRING[state]);
@@ -886,17 +899,16 @@ void proc_error() {
 }
 
 void proc_off() {
+  //reset some shit
+  start_count = 0;
+  start_feed_time = 0;
+  start_feed_pause = 0;
+  start_pump_time = 0;
+  debounce_start = 0;
+  reason = "";
   //if too hot pump unitl not:
-  if (water_temp > MID_TEMP) {
+  if ((water_temp > MID_TEMP) || (flame_val > FLAME_VAL_THRESHOLD)) {
     cool_to_stop(STATE_OFF);    
-  }else if (first_loop) { //turn everthing off once
-    start_count = 0;
-    start_feed_time = 0;
-    start_feed_pause = 0;
-    start_pump_time = 0;
-    debounce_start = 0;
-    reason = "";
-    first_loop = false;
   }else {
     housekeeping();//turn everything off and keep checking it is off
   }
@@ -964,8 +976,6 @@ void loop() {
         //
         publish(STATE_TOPIC, STATES_STRING[state]);
       #endif  
-    }else {
-      //do nothing i guess
     }
   }
   //button press?
@@ -982,7 +992,6 @@ void loop() {
         #endif        
       }else {
         state = STATE_OFF;
-        first_loop = true;
         #ifdef mqtt
           //
           publish(STATE_TOPIC, STATES_STRING[state]);
@@ -1000,7 +1009,6 @@ void loop() {
       reason = "";
       stringComplete = false;
       state = STATE_OFF;
-      first_loop = true;
       #ifdef mqtt
         //
         publish(STATE_TOPIC, STATES_STRING[state]);
