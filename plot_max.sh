@@ -1,5 +1,5 @@
 #!/bin/bash
-PREFIX=/mnt/nfs/boiler/furnace_control/status_plot
+PREFIX=/var/www/html/images/boiler/status_plot
 RRD_DIR=/home/marcus/rrd
 for INTERVAL in 1 2 5 24 72
   do
