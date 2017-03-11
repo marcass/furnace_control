@@ -47,7 +47,8 @@ const long PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
 const int BUTTON_ON_THRESHOLD = 1500;//1.5s in ms for turning from off to idle and vice versa
 const long FEED_PAUSE = 40000; //60s and calculating a result so might need to be a float
 const long FEED_TIME = 10000;//default pellet feed time
-const long STATE_CHANGE_THRES = 5000;//time that needs to elapse before changing STATE_START_UP <-> STATE_HEATING
+const long STATE_CHANGE_THRES = 5000;//time that needs to elapse before changing STATE_START_UP <- STATE_HEATING
+const long STATE_CHANGE_THRES_UP = 2000;//time that needs to elapse before changing STATE_START_UP -> STATE_HEATING
 const long STOP_THRESH = 5000; //for  fan short cycling
 const long ERROR_THRES = 5000;//time that must elapse before goes into error at startup (not working at present)
 const long RESET_THRESHOLD = 300000; //time that must elapse before start count gets reset
@@ -60,7 +61,7 @@ const int TOO_HOT_TEMP = 85; //cool down NOW
 const int AUGER_OVER_TEMP = 55; //deg C - don't want a hopper fire
 //flame values
 const int FLAME_VAL_THRESHOLD = 120;//work out a value here that is reasonable
-const int START_FLAME = 80;
+const int START_FLAME = 50;
 //States
 const int STATE_IDLE = 0;
 const int STATE_START_UP = 1;
@@ -192,6 +193,7 @@ unsigned long prevMillis;
   String PID_FAN = "boiler/pid/fan";
   String PID_FEED = "boiler/pid/feed";
   String PID_PAUSE = "boiler/pid/pause";
+  String START_COUNT_TOP = "boiler/start_count";
   const String STATES_STRING[] = {"Idle","Starting","Heating","Cool down","Error","Off"};
   
   //publish functions overloaded for int/string as payload
@@ -310,6 +312,7 @@ void setup() {
   #endif
 }
 
+//Functions that so stuff ********************************************************************
 void run_fan(int x) {
   if (!runFan) {
     runFan = true;
@@ -377,6 +380,7 @@ void stop_fan() {
     TCCR1A = 0x00;    //timer control registers set for
     TCCR1B = 0x00;    //normal operation, timer disabled
     stop_start = 0;
+    power = 0;
   }
 }
 
@@ -483,13 +487,12 @@ void going_yet() {
    * 2. check to see if a little bit of light -> fan and go to 1
    * 3. if no light -> pellet dump and element start then go to 1
    */
-  //read light in firebox
-  //flame_val = analogRead(LIGHT);
-  if (flame_val > FLAME_VAL_THRESHOLD) { //if plenty of light go to heating
+  //read light in firebox (done in loop)
+  if (flame_val > START_FLAME) {//FLAME_VAL_THRESHOLD) { //If a bit of light get to heating
     if (state_trans_start == 0) { //smooth state transitions
       state_trans_start = millis();
     }
-    if (millis() - state_trans_start > STATE_CHANGE_THRES) {
+    if (millis() - state_trans_start > STATE_CHANGE_THRES_UP) {
       digitalWrite(AUGER, LOW);
       state = STATE_HEATING;
       #ifdef mqtt
@@ -502,19 +505,23 @@ void going_yet() {
       reset = true; //watch for timer to reset start count
       reset_start_count_timer = millis();
       state_trans_start = 0;
+      runFan = true;
+      dump = false;
     } //else keep coming back to check
-  }else if (flame_val > START_FLAME) { //a little bit of light so lets gently blow and see if flame_val_threshold breached
-    runFan = true; //run fan at 40%
-    dump = false;
-    if (fan_start == 0) {
-      fan_start = millis();
-    }
-    if (millis() - fan_start > START_FAN_TIME) { //start again
-      runFan = false;
-      dump = true;
-      fan_start = 0;
-    }
-  }else {
+  }
+//  else if (flame_val > START_FLAME) { //a little bit of light so lets gently blow and see if flame_val_threshold breached
+//    runFan = true; //run fan at 40%
+//    dump = false;
+//    if (fan_start == 0) {
+//      fan_start = millis();
+//    }
+//    if (millis() - fan_start > START_FAN_TIME) { //start again
+//      runFan = false;
+//      dump = true;
+//      fan_start = 0;
+//    }
+//  }
+  else {
      state_trans_start = 0; //not enough flame for state trans so reset timer
   }
 }
@@ -524,7 +531,8 @@ void cool_to_stop(int target_state) {
   digitalWrite(AUGER, LOW);
   digitalWrite(ELEMENT, LOW);
   if (water_temp > HIGH_TEMP) {
-    stop_fan();
+    runFan = false;
+    //stop_fan();
   }else {
     run_fan(100);
   }
@@ -573,9 +581,10 @@ void cool_to_stop(int target_state) {
 }
 
 void housekeeping() {
-  if (runFan) {
-    stop_fan();
-  }
+  //if (runFan) {
+  runFan  = false;
+    //stop_fan();
+  //}
   if (digitalRead(PUMP) == HIGH) {
     digitalWrite(PUMP, LOW);
   }
@@ -584,6 +593,12 @@ void housekeeping() {
   }
   if (digitalRead(AUGER) == HIGH) {
     digitalWrite(AUGER, LOW);
+  }
+  if (dump) {
+    dump = false;
+  }
+  if (elem) {
+    elem = false;
   }
 }
 
@@ -611,7 +626,7 @@ void proc_idle() {
 void proc_start_up() {
   //kill if failed to start too many times
   if (start_count > 2) {
-    if (error_timer == 0) { //wait and think about shit for a while
+    if (error_timer == 0) { //wait and fan for a while before erroring
       error_timer =  millis();
     }
     if (millis() - error_timer > ERROR_THRES) {
@@ -624,9 +639,8 @@ void proc_start_up() {
         error_timer = 0;
       #endif
     }
-    //runFan = true; //meanwhile, fan shit    
+    runFan = true; //meanwhile, fan shit    
   }
-  //run fan if true
   #ifdef debug
     Serial.print("runFan = ");
     Serial.print(runFan);
@@ -634,20 +648,18 @@ void proc_start_up() {
 //    Serial.print(dump);
     Serial.print("  ");
   #endif
-  if (runFan) {
-    run_fan(100);
-  }else {
-    stop_fan(); //fucking fan keeps turning on
-  }
+  //if (runFan) { //******************  fan in  here!!!************************************
+  run_fan(100); //unless flag set to false
+  //}//******************  fan in  here!!!************************************
+//  else {
+//    stop_fan(); //fucking fan keeps turning on
+//  }
   going_yet(); //perform check in each loop
   if (start_count == 0) {
     runFan = true; //start fan on count 0 of each start up to see if flames present
     if (fan_start == 0) {
       fan_start = millis();
     }
-//    if (millis() - fan_start > DUMP_START) { //keeps thee fan running Grrrr???
-//      digitalWrite(AUGER, HIGH); //dump pellets //throw some fuel on if no light yet
-//    }
     if (millis() - fan_start > START_FAN_TIME) {
       runFan = false;
       start_count++; //increment out of this loop
@@ -1048,13 +1060,13 @@ void loop() {
     if ((state == STATE_START_UP) or (state == STATE_HEATING) or (state == STATE_COOL_DOWN)) { //publish messages
       //get flame_val average
       flame_value_median();
-      int mosqPayload[] = {water_temp, auger_temp, flame_val, state, fan_power, feed_percent, feed_pause_percent};
-      const String mosqTop[] = {WATER_TEMP_TOPIC, AUGER_TEMP_TOPIC, FLAME_TOPIC, STATE_TOPIC, PID_FAN, PID_FEED, PID_PAUSE};
+      int mosqPayload[] = {water_temp, auger_temp, flame_val, state, fan_power, feed_percent, feed_pause_percent, start_count};
+      const String mosqTop[] = {WATER_TEMP_TOPIC, AUGER_TEMP_TOPIC, FLAME_TOPIC, STATE_TOPIC, PID_FAN, PID_FEED, PID_PAUSE, START_COUNT_TOP};
       //publish everything in a round robin fashion
       unsigned long currentMillis = millis();
       if(currentMillis - previousMillis > PUB_INTERVAL) { //publish info
         previousMillis = currentMillis;  
-        if (index < 6 ) {
+        if (index < 7 ) {
           index++; 
         }else {
           index = 0;
