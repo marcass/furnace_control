@@ -123,7 +123,7 @@ bool feeding = true;
 bool cooling = false;
 bool dump = false;
 bool elem = false;
-bool runFan;
+//bool runFan; declared in fan function
 //maths
 int proportion;
 float divisor;
@@ -311,7 +311,10 @@ void setup() {
 }
 
 //Functions that so stuff ********************************************************************
-void fan(int x) {
+void fan(bool runFan, int x) {
+  #ifdef mqtt
+    fan_power = x;
+  #endif
   if (!runFan) {
     if (stop_start == 0) { //dont' short cycle fan
       stop_start = millis();
@@ -331,9 +334,6 @@ void fan(int x) {
     }
   }
   if (runFan) {
-    #ifdef mqtt
-      fan_power = x;
-    #endif
     if (x == 100) { //no phase angle control needed if you want balls out fan speed
       digitalWrite(GATE,HIGH);
       #ifdef debug
@@ -431,8 +431,7 @@ void fan_and_pellet_management() {
   //water temp measured in safety()
   //FAN MANAGEMENT
   if (water_temp < LOW_TEMP) { //go hard on the fan
-    runFan = true;
-    fan(100);
+    fan(true, 100);
   }else if (water_temp > HIGH_TEMP) {
     state = STATE_COOL_DOWN;
     #ifdef mqtt
@@ -443,8 +442,7 @@ void fan_and_pellet_management() {
     #ifdef no_PID
       power = 75; //arbitrary value
     #endif
-    runFan = true;
-    fan((int)power);
+    fan(true, (int)power);
   }
   //PELLETS MANAGEMENT
   #ifdef pid
@@ -522,7 +520,6 @@ void going_yet() {
       reset = true; //watch for timer to reset start count
       reset_start_count_timer = millis();
       state_trans_start = 0;
-      runFan = true;
       dump = false;
     } //else keep coming back to check
   }
@@ -548,11 +545,9 @@ void cool_to_stop(int target_state) {
   digitalWrite(AUGER, LOW);
   digitalWrite(ELEMENT, LOW);
   if (water_temp > HIGH_TEMP) {
-    runFan = false;
-    //stop_fan();
+    fan(false, 0);
   }else {
-    runFan = true;
-    fan(100);
+    fan(true, 100);
   }
   #ifdef debug
     Serial.print("  Cooling down as all off  ");
@@ -572,7 +567,7 @@ void cool_to_stop(int target_state) {
     }
     if ((long)(millis() - fan_start) > END_FAN_TIME) { 
       //stop_fan(); //puck blown to peices, clean grate for next light
-      runFan = false;
+      fan(false, 0);
       if (state_trans_start == 0) { //smooth state transitions
         state_trans_start = millis();
       }
@@ -606,7 +601,7 @@ void cool_to_stop(int target_state) {
 
 void housekeeping() {
   //if (runFan) {
-  runFan  = false;
+  fan(false, 0);
     //stop_fan();
   //}
   if (digitalRead(PUMP) == HIGH) {
@@ -633,7 +628,6 @@ void proc_idle() {
   //1-wire relay gets closed by DZ3
   if (digitalRead(DZ_PIN) == LOW) {
     state = STATE_START_UP;
-    runFan = true;
     fan_start = 0;
     reason = "";
     #ifdef mqtt
@@ -663,29 +657,23 @@ void proc_start_up() {
         error_timer = 0;
       #endif
     }
-    runFan = true; //meanwhile, fan shit    
+    fan(true, 60); //meanwhile, fan shit    
   }
   #ifdef debug
-    Serial.print("runFan = ");
-    Serial.print(runFan);
-//    Serial.print("  Dump =   ");
-//    Serial.print(dump);
+//    Serial.print("runFan = ");
+//    Serial.print(runFan);
+    Serial.print("  Dump =   ");
+    Serial.print(dump);
     Serial.print("  ");
   #endif
-  //if (runFan) { //******************  fan in  here!!!************************************
-  fan(100); //unless flag set to false
-  //}//******************  fan in  here!!!************************************
-//  else {
-//    stop_fan(); //fucking fan keeps turning on
-//  }
   going_yet(); //perform check in each loop
   if (start_count == 0) {
-    runFan = true; //start fan on count 0 of each start up to see if flames present
+    fan(true, 100); //unless flag set to false
     if (fan_start == 0) {
       fan_start = millis();
     }
     if ((long)(millis() - fan_start) > START_FAN_TIME) {
-      runFan = false;
+      fan(false, 0);
       start_count++; //increment out of this loop
       fan_start = 0;
       dump = true;
@@ -721,7 +709,7 @@ void proc_start_up() {
       }
       
       digitalWrite(AUGER, HIGH); //dump pellets
-      runFan = false;
+      fan(false, 0);
       digitalWrite(ELEMENT, LOW);
       #ifdef debug
         Serial.print(" Auger on ");
@@ -738,12 +726,12 @@ void proc_start_up() {
 //        #ifdef debug
 //          Serial.println("Element on long enough so turned off");
 //        #endif        
-        runFan = true;//fan puck for a while to see if picked up in going yet
+        fan(true, 60);
         if (fallback_fan_start == 0) {
           fallback_fan_start = millis();
         } //loop back to see if going for a bit
         if ((long)(millis() - fallback_fan_start) > START_FAN_TIME) { //no flame made - hopeless so start again
-          runFan = false;
+          fan(false, 0);
           fallback_fan_start = 0;
           //go back to start and dump another load
           auger_start = 0;
@@ -755,7 +743,7 @@ void proc_start_up() {
         }
       }else {
         digitalWrite(ELEMENT, HIGH); //start element
-        runFan = false;
+        fan(false, 0);
         digitalWrite(AUGER, LOW);
         #ifdef debug
           Serial.print("  Element on  ");
@@ -805,7 +793,6 @@ void proc_heating() {
     }
     if ((long)(millis() - state_trans_start) > STATE_CHANGE_THRES) {
       state = STATE_START_UP;
-      runFan = true;
       dump = false;
       #ifdef mqtt
         //
@@ -865,7 +852,7 @@ void proc_cool_down() {
   }
   if (water_temp > HIGH_TEMP) {
     //stop_fan();
-    runFan = false;
+    fan(false, 0);
     //pump some water to cool it
     pump(true);
     #ifdef debug
@@ -874,8 +861,7 @@ void proc_cool_down() {
   }
   if (water_temp > MID_TEMP) {
     pump(true);
-    runFan = true;
-    fan(50); //gentle blow to keep things ticking over
+    //fan(true, 50); //gentle blow to keep things ticking over
   }
   //not too hot but now but could be cooler
   if (water_temp < MID_TEMP) {
@@ -902,8 +888,7 @@ void proc_error() {
     Serial.print(reason);
   #endif
   //kill heating thigns
-//  stop_fan();
-  runFan = false;
+  fan(false, 0);
   digitalWrite(AUGER, LOW);
   digitalWrite(ELEMENT, LOW);
   //test if boiler too hot, if it is pump some water to cool it
