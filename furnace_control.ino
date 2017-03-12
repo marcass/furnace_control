@@ -108,8 +108,8 @@ unsigned long start_feed_time = 0;//pellets
 unsigned long start_feed_pause = 0;//pellets
 unsigned long start_pump_time = 0;//pump short cycling
 int on_wait; //variable for converting power to timer value
-long feed_pause;//var for pellets puase time
-long feed_time;//var for feed time
+unsigned long feed_pause;//var for pellets puase time
+unsigned long feed_time;//var for feed time
 //sensor readings
 int auger_temp;
 int flame_val; // range from 0 to 1024 ( i think)
@@ -316,7 +316,7 @@ void fan(int x) {
     if (stop_start == 0) { //dont' short cycle fan
       stop_start = millis();
     }
-    if (millis() - stop_start > STOP_THRESH) {
+    if ((long)(millis() - stop_start) > STOP_THRESH) {
       digitalWrite(GATE,LOW);
       #ifdef debug
         Serial.print("  Fan off  ");
@@ -407,7 +407,7 @@ void pump(bool on) { //prevents short cycling of pump
     }
   }
   if (!on) {
-    if (millis() - start_pump_time > PUMP_TIME) {
+    if ((long)(millis() - start_pump_time) > PUMP_TIME) {
       digitalWrite(PUMP, LOW);
       #ifdef debug
         Serial.print("  Pump off  ");
@@ -460,7 +460,7 @@ void fan_and_pellet_management() {
       start_feed_time = millis();
     }
     //test to see if feed been on for long enough
-    if (millis() - start_feed_time > feed_time) {
+    if ((long)(millis() - start_feed_time) > feed_time) {
       //stop feeding and start pausing
       feeding = false;
       start_feed_time = 0;
@@ -480,7 +480,7 @@ void fan_and_pellet_management() {
     if (start_feed_pause == 0 ) {
       start_feed_pause = millis();
     }
-    if (millis() - start_feed_pause > feed_pause) {
+    if ((long)(millis() - start_feed_pause) > feed_pause) {
       //stop pausing, start feeding
       
       start_feed_pause = 0;
@@ -509,7 +509,7 @@ void going_yet() {
     if (state_trans_start == 0) { //smooth state transitions
       state_trans_start = millis();
     }
-    if (millis() - state_trans_start > STATE_CHANGE_THRES_UP) {
+    if ((long)(millis() - state_trans_start) > STATE_CHANGE_THRES_UP) {
       digitalWrite(AUGER, LOW);
       state = STATE_HEATING;
       #ifdef mqtt
@@ -570,13 +570,13 @@ void cool_to_stop(int target_state) {
     if (fan_start == 0) {
       fan_start = millis();
     }
-    if (millis() - fan_start > END_FAN_TIME) { 
+    if ((long)(millis() - fan_start) > END_FAN_TIME) { 
       //stop_fan(); //puck blown to peices, clean grate for next light
       runFan = false;
       if (state_trans_start == 0) { //smooth state transitions
         state_trans_start = millis();
       }
-      if (millis() - state_trans_start > STATE_CHANGE_THRES) {
+      if ((long)(millis() - state_trans_start) > STATE_CHANGE_THRES) {
         if (target_state == STATE_OFF) {
         start_count = 0;
         }else if (target_state == STATE_ERROR) {
@@ -653,7 +653,7 @@ void proc_start_up() {
     if (error_timer == 0) { //wait and fan for a while before erroring
       error_timer =  millis();
     }
-    if (millis() - error_timer > ERROR_THRES) {
+    if ((long)(millis() - error_timer) > ERROR_THRES) {
       state = STATE_ERROR;
       reason = "failed to start";
       #ifdef mqtt
@@ -684,7 +684,7 @@ void proc_start_up() {
     if (fan_start == 0) {
       fan_start = millis();
     }
-    if (millis() - fan_start > START_FAN_TIME) {
+    if ((long)(millis() - fan_start) > START_FAN_TIME) {
       runFan = false;
       start_count++; //increment out of this loop
       fan_start = 0;
@@ -698,7 +698,7 @@ void proc_start_up() {
         
       }
       if (start_count == 1) {
-        if (millis() - auger_start > START_FEED_TIME) {
+        if ((long)(millis() - auger_start) > START_FEED_TIME) {
           //stop feeding pellets
           digitalWrite(AUGER, LOW);
           dump = false;
@@ -709,7 +709,7 @@ void proc_start_up() {
         }
       }
       if (start_count > 1) { //don't want to overload pellet chamber
-        if (millis() - auger_start > SUBSEQUENT_START_FEED_TIME) {
+        if ((long)(millis() - auger_start) > SUBSEQUENT_START_FEED_TIME) {
         //stop feeding pellets
         digitalWrite(AUGER, LOW);
         dump = false;
@@ -733,7 +733,7 @@ void proc_start_up() {
         element_start = millis();
       }
       //test to see if element been on for too enough and stop it if it has
-      if (millis() - element_start > ELEMENT_TIME) {
+      if ((long)(millis() - element_start) > ELEMENT_TIME) {
         digitalWrite(ELEMENT, LOW);
 //        #ifdef debug
 //          Serial.println("Element on long enough so turned off");
@@ -742,7 +742,7 @@ void proc_start_up() {
         if (fallback_fan_start == 0) {
           fallback_fan_start = millis();
         } //loop back to see if going for a bit
-        if (millis() - fallback_fan_start > START_FAN_TIME) { //no flame made - hopeless so start again
+        if ((long)(millis() - fallback_fan_start) > START_FAN_TIME) { //no flame made - hopeless so start again
           runFan = false;
           fallback_fan_start = 0;
           //go back to start and dump another load
@@ -803,7 +803,7 @@ void proc_heating() {
     if (state_trans_start == 0) { //smooth state transitions
       state_trans_start = millis();
     }
-    if (millis() - state_trans_start > STATE_CHANGE_THRES) {
+    if ((long)(millis() - state_trans_start) > STATE_CHANGE_THRES) {
       state = STATE_START_UP;
       runFan = true;
       dump = false;
@@ -816,7 +816,7 @@ void proc_heating() {
       if (state_trans_stop == 0) {
         state_trans_stop = millis();
       }
-      if (millis() - state_trans_stop > STATE_CHANGE_THRES) {
+      if ((long)(millis() - state_trans_stop) > STATE_CHANGE_THRES) {
         state_trans_start = 0;
       }
     }
@@ -1022,7 +1022,7 @@ void loop() {
     if (debounce_start == 0) {
       debounce_start = millis();
     }
-    if (millis() - debounce_start > BUTTON_ON_THRESHOLD) {
+    if ((long)(millis() - debounce_start) > BUTTON_ON_THRESHOLD) {
       if (state != STATE_OFF) {
         state = STATE_IDLE;
         #ifdef mqtt
@@ -1135,7 +1135,7 @@ void loop() {
     #endif
   //delay(200); //can't read form serial with delay
   if (reset) {
-    if (millis() -  reset_start_count_timer > RESET_THRESHOLD) {
+    if ((long)(millis() -  reset_start_count_timer) > RESET_THRESHOLD) {
       start_count = 0;
       error_timer = 0;
       reset_start_count_timer = 0;
