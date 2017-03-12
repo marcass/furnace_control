@@ -1110,7 +1110,7 @@ void loop() {
       if (index > 1) {//set it to value for publishing if was in higher value from prev on state
         index = 0;
       }
-      if(currentMillis - previousMillis > PUB_INTERVAL_IDLE) { //publish info
+      if((long)(currentMillis - previousMillis) > PUB_INTERVAL_IDLE) { //publish info
         previousMillis = currentMillis;
         if (index < 1) { 
           publish(WATER_TEMP_TOPIC, water_temp);//water temp in first member of arrays
