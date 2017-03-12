@@ -149,15 +149,15 @@ unsigned long prevMillis;
  */
 #ifdef pid
   double Kp=10, Ki=0.001, Kd=1; //P, I and D see http://playground.arduino.cc/Code/PIDLibrarySetTunings
-  double TEMP_SET_POINT = 63; //PID temp SETPOINT
+  double temp_set_point = 63; //PID temp SETPOINT
   double power; //variable for percentage power we want fan to run at works from 30 (min) to 80 (max)
   double water_temp;
   double feed_pause_percent;
   double feed_percent;
   //PID fanPID(&Input, &Output, &Setpoint,2,5,1, DIRECT);
-  PID fanPID(&water_temp, &power, &TEMP_SET_POINT,Kp, Ki, Kd, DIRECT); //need more fan power to get hotter so DIRECT
-  PID pausePID(&water_temp, &feed_pause_percent, &TEMP_SET_POINT,Kp, Ki, Kd, REVERSE); //need shorter feed time to get to hotter so REVERSE
-  PID feedPID(&water_temp, &feed_percent, &TEMP_SET_POINT,Kp, Ki, Kd, DIRECT);
+  PID fanPID(&water_temp, &power, &temp_set_point,Kp, Ki, Kd, DIRECT); //need more fan power to get hotter so DIRECT
+  PID pausePID(&water_temp, &feed_pause_percent, &temp_set_point,Kp, Ki, Kd, REVERSE); //need shorter feed time to get to hotter so REVERSE
+  PID feedPID(&water_temp, &feed_percent, &temp_set_point,Kp, Ki, Kd, DIRECT);
   /* maths  may need to be addedfor value calcs (pid outputs value of 0-255 and we want to convert to 
    *  range in percentage limits
    *  http://playground.arduino.cc/Code/PIDLibrarySetOutputLimits states that 
@@ -316,10 +316,10 @@ void fan(bool runFan, int x) {
     fan_power = x;
   #endif
   if (!runFan) {
-    if (stop_start == 0) { //dont' short cycle fan
-      stop_start = millis();
-    }
-    if ((long)(millis() - stop_start) > STOP_THRESH) {
+//    if (stop_start == 0) { //dont' short cycle fan
+//      stop_start = millis();
+//    }
+//    if ((long)(millis() - stop_start) > STOP_THRESH) {
       digitalWrite(GATE,LOW);
       #ifdef debug
         Serial.print("  Fan off  ");
@@ -331,7 +331,7 @@ void fan(bool runFan, int x) {
       TCCR1B = 0x00;    //normal operation, timer disabled
       stop_start = 0;
       power = 0;
-    }
+//    }
   }
   if (runFan) {
     if (x == 100) { //no phase angle control needed if you want balls out fan speed
@@ -681,6 +681,7 @@ void proc_start_up() {
   }
   if (start_count > 0) {
     if (dump) {
+      fan(false, 0);
       if (auger_start == 0) {
         auger_start = millis();
         
@@ -707,9 +708,7 @@ void proc_start_up() {
         #endif
         }
       }
-      
       digitalWrite(AUGER, HIGH); //dump pellets
-      fan(false, 0);
       digitalWrite(ELEMENT, LOW);
       #ifdef debug
         Serial.print(" Auger on ");
@@ -935,7 +934,7 @@ void proc_off() {
   }else {
     housekeeping();//turn everything off and keep checking it is off
   }
-  //turn on if serial comms received
+  //do stuff if serial comms received
   if (stringComplete) {
     if (inputString.startsWith("Turn On Boiler")) {
       inputString = "";
@@ -948,14 +947,24 @@ void proc_off() {
       #endif    
       start_count = 0;  
       //delay(10);
-    }else {
-      reason = inputString;
-      #ifdef mqtt
-        publish(ERROR_TOPIC, reason); //dump message so we can see how it was malformed
-      #endif
-      reason = "";
+    }else if (inputString.startsWith("Increase SetPoint")) {
       inputString = "";
-      stringComplete = false;  
+      stringComplete = false;
+      (int)temp_set_point++;
+      reason = String("Increase, now: " + (int)temp_set_point);
+      #ifdef mqtt
+        //
+        publish(ERROR_TOPIC, reason);
+      #endif
+    }else if (inputString.startsWith("Decrease SetPoint")) {
+      inputString = "";
+      stringComplete = false;
+      (int)temp_set_point--;
+      reason = String("Decrease, now: " + (int)temp_set_point);
+      #ifdef mqtt
+        //
+        publish(ERROR_TOPIC, reason);
+      #endif
     }
   }
 }
