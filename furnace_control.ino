@@ -1,9 +1,7 @@
 /* ToDo
  *  - Publish pid percentages for pause, feed adn fan
- *  - change pause pid name
  *  - check lcd working
  *  - put ultrasound probe on analoge pins (as digital?)
- *  - publish flame every second
  */
 
 /*******************************
@@ -433,6 +431,7 @@ void fan_and_pellet_management() {
   //water temp measured in safety()
   //FAN MANAGEMENT
   if (water_temp < LOW_TEMP) { //go hard on the fan
+    runFan = true;
     fan(100);
   }else if (water_temp > HIGH_TEMP) {
     state = STATE_COOL_DOWN;
@@ -444,6 +443,7 @@ void fan_and_pellet_management() {
     #ifdef no_PID
       power = 75; //arbitrary value
     #endif
+    runFan = true;
     fan((int)power);
   }
   //PELLETS MANAGEMENT
@@ -551,6 +551,7 @@ void cool_to_stop(int target_state) {
     runFan = false;
     //stop_fan();
   }else {
+    runFan = true;
     fan(100);
   }
   #ifdef debug
@@ -578,6 +579,11 @@ void cool_to_stop(int target_state) {
       if (millis() - state_trans_start > STATE_CHANGE_THRES) {
         if (target_state == STATE_OFF) {
         start_count = 0;
+        }else if (target_state == STATE_ERROR) {
+          #ifdef mqtt
+            //
+            publish(ERROR_TOPIC, reason);
+          #endif  
         }
         state = target_state;
         #ifdef mqtt
@@ -848,7 +854,6 @@ void proc_cool_down() {
    */
   digitalWrite(AUGER, LOW);
   digitalWrite(ELEMENT, LOW);
-  //flame_val = analogRead(LIGHT);
   if (water_temp > TOO_HOT_TEMP) {
     cool_to_stop(STATE_ERROR);
     reason = "Too hot";
@@ -869,6 +874,7 @@ void proc_cool_down() {
   }
   if (water_temp > MID_TEMP) {
     pump(true);
+    runFan = true;
     fan(50); //gentle blow to keep things ticking over
   }
   //not too hot but now but could be cooler
@@ -972,7 +978,8 @@ void proc_off() {
 void safety() {
   water_temp = int(Thermistor(analogRead(WATER_TEMP)));
   if (water_temp > TOO_HOT_TEMP) {
-    state = STATE_COOL_DOWN;
+    cool_to_stop(STATE_ERROR);
+    reason = "Too hot";
     #ifdef mqtt
       //
       publish(STATE_TOPIC, STATES_STRING[state]);
