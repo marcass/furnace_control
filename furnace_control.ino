@@ -313,76 +313,93 @@ void setup() {
 }
 
 //Functions that so stuff ********************************************************************
-void run_fan(int x) {
+void fan(int x) {
   if (!runFan) {
-    runFan = true;
-  }
-  #ifdef mqtt
-    fan_power = x;
-  #endif
-  if (x == 100) { //no phase angle control needed if you want balls out fan speed
-    digitalWrite(GATE,HIGH);
-    #ifdef debug
-      Serial.print("  Fan on 100%  ");
-    #endif    
-  }else {
-    #ifdef debug
-      Serial.print(" FAN ON at ");
-      Serial.print(x);
-    #endif
-    //do magic phase angle stuff here
-    /* x is the int as a percentage of fan power
-     * OCR1A is the comparator for the phase angle cut-off
-     * - when TCNT1 > OCR1A, ISR(TIMER1_OVF_vect) is called tellng optocoupler to power down
-     * - 520 counts (16000000 cycles scaled to 256) per half AC sine wave @60hz (i think we run at 50Hz)
-     * - fan stops over 80% of power, presumably latching the triac confusion over next zero cross => less than 156 count delay
-     * - 30% is the lower power limit to avoid firing the triac too close to teh zero cross => delay not more than 364 count delay
-     * - The smaller the value of OCR1A the more power we have
-     */
-    TIMSK1 = 0x03;    //enable comparator A and overflow interrupts
-    //set up interrupt
-    
-    //attachInterrupt(0,zeroCrossingInterrupt, RISING);  // inturrupt 0 on digital pin 2
-    
-    //set a value that is a proportion of 520 for power
-    divisor = (float)x / 100;
-    proportion = divisor * 520;
-    on_wait = 520 - proportion;
-//    #ifdef debug
-//      Serial.print("on_wait = ");
-//      Serial.print(on_wait);
-//      Serial.print("  ");
-//    #endif
-    if ( on_wait < 104) {
-      OCR1A = 104;
+    if (stop_start == 0) { //dont' short cycle fan
+      stop_start = millis();
     }
-    if ( on_wait > 364) {
-      OCR1A = 364;
+    if (millis() - stop_start > STOP_THRESH) {
+      digitalWrite(GATE,LOW);
+      #ifdef debug
+        Serial.print("  Fan off  ");
+      #endif 
+      //undo phase angle magic here 
+      TCCR1B = 0x00;
+      TIMSK1 = 0x00;    //disable comparator A and overflow interrupts
+      TCCR1A = 0x00;    //timer control registers set for
+      TCCR1B = 0x00;    //normal operation, timer disabled
+      stop_start = 0;
+      power = 0;
+    }
+  }
+  if (runFan) {
+    #ifdef mqtt
+      fan_power = x;
+    #endif
+    if (x == 100) { //no phase angle control needed if you want balls out fan speed
+      digitalWrite(GATE,HIGH);
+      #ifdef debug
+        Serial.print("  Fan on 100%  ");
+      #endif    
     }else {
-      OCR1A = on_wait;
+      #ifdef debug
+        Serial.print(" FAN ON at ");
+        Serial.print(x);
+      #endif
+      //do magic phase angle stuff here
+      /* x is the int as a percentage of fan power
+       * OCR1A is the comparator for the phase angle cut-off
+       * - when TCNT1 > OCR1A, ISR(TIMER1_OVF_vect) is called tellng optocoupler to power down
+       * - 520 counts (16000000 cycles scaled to 256) per half AC sine wave @60hz (i think we run at 50Hz)
+       * - fan stops over 80% of power, presumably latching the triac confusion over next zero cross => less than 156 count delay
+       * - 30% is the lower power limit to avoid firing the triac too close to teh zero cross => delay not more than 364 count delay
+       * - The smaller the value of OCR1A the more power we have
+       */
+      TIMSK1 = 0x03;    //enable comparator A and overflow interrupts
+      //set up interrupt
+      
+      //attachInterrupt(0,zeroCrossingInterrupt, RISING);  // inturrupt 0 on digital pin 2
+      
+      //set a value that is a proportion of 520 for power
+      divisor = (float)x / 100;
+      proportion = divisor * 520;
+      on_wait = 520 - proportion;
+  //    #ifdef debug
+  //      Serial.print("on_wait = ");
+  //      Serial.print(on_wait);
+  //      Serial.print("  ");
+  //    #endif
+      if ( on_wait < 104) {
+        OCR1A = 104;
+      }
+      if ( on_wait > 364) {
+        OCR1A = 364;
+      }else {
+        OCR1A = on_wait;
+      }
     }
   }
 }
 
-void stop_fan() {
-  if (stop_start == 0) { //dont' short cycle fan
-    stop_start = millis();
-  }
-  if (millis() - stop_start > STOP_THRESH) {
-    digitalWrite(GATE,LOW);
-    runFan = false;
-    #ifdef debug
-      Serial.print("  Fan off  ");
-    #endif 
-    //undo phase angle magic here 
-    TCCR1B = 0x00;
-    TIMSK1 = 0x00;    //disable comparator A and overflow interrupts
-    TCCR1A = 0x00;    //timer control registers set for
-    TCCR1B = 0x00;    //normal operation, timer disabled
-    stop_start = 0;
-    power = 0;
-  }
-}
+//void stop_fan() {
+//  if (stop_start == 0) { //dont' short cycle fan
+//    stop_start = millis();
+//  }
+//  if (millis() - stop_start > STOP_THRESH) {
+//    digitalWrite(GATE,LOW);
+//    runFan = false;
+//    #ifdef debug
+//      Serial.print("  Fan off  ");
+//    #endif 
+//    //undo phase angle magic here 
+//    TCCR1B = 0x00;
+//    TIMSK1 = 0x00;    //disable comparator A and overflow interrupts
+//    TCCR1A = 0x00;    //timer control registers set for
+//    TCCR1B = 0x00;    //normal operation, timer disabled
+//    stop_start = 0;
+//    power = 0;
+//  }
+//}
 
 void pump(bool on) { //prevents short cycling of pump
   if (on) {
@@ -416,7 +433,7 @@ void fan_and_pellet_management() {
   //water temp measured in safety()
   //FAN MANAGEMENT
   if (water_temp < LOW_TEMP) { //go hard on the fan
-    run_fan(100);
+    fan(100);
   }else if (water_temp > HIGH_TEMP) {
     state = STATE_COOL_DOWN;
     #ifdef mqtt
@@ -427,7 +444,7 @@ void fan_and_pellet_management() {
     #ifdef no_PID
       power = 75; //arbitrary value
     #endif
-    run_fan((int)power);
+    fan((int)power);
   }
   //PELLETS MANAGEMENT
   #ifdef pid
@@ -534,7 +551,7 @@ void cool_to_stop(int target_state) {
     runFan = false;
     //stop_fan();
   }else {
-    run_fan(100);
+    fan(100);
   }
   #ifdef debug
     Serial.print("  Cooling down as all off  ");
@@ -553,7 +570,8 @@ void cool_to_stop(int target_state) {
       fan_start = millis();
     }
     if (millis() - fan_start > END_FAN_TIME) { 
-      stop_fan(); //puck blown to peices, clean grate for next light
+      //stop_fan(); //puck blown to peices, clean grate for next light
+      runFan = false;
       if (state_trans_start == 0) { //smooth state transitions
         state_trans_start = millis();
       }
@@ -649,7 +667,7 @@ void proc_start_up() {
     Serial.print("  ");
   #endif
   //if (runFan) { //******************  fan in  here!!!************************************
-  run_fan(100); //unless flag set to false
+  fan(100); //unless flag set to false
   //}//******************  fan in  here!!!************************************
 //  else {
 //    stop_fan(); //fucking fan keeps turning on
@@ -841,7 +859,8 @@ void proc_cool_down() {
     #endif 
   }
   if (water_temp > HIGH_TEMP) {
-    stop_fan();
+    //stop_fan();
+    runFan = false;
     //pump some water to cool it
     pump(true);
     #ifdef debug
@@ -850,7 +869,7 @@ void proc_cool_down() {
   }
   if (water_temp > MID_TEMP) {
     pump(true);
-    run_fan(50); //gentle blow to keep things ticking over
+    fan(50); //gentle blow to keep things ticking over
   }
   //not too hot but now but could be cooler
   if (water_temp < MID_TEMP) {
@@ -877,7 +896,8 @@ void proc_error() {
     Serial.print(reason);
   #endif
   //kill heating thigns
-  stop_fan();
+//  stop_fan();
+  runFan = false;
   digitalWrite(AUGER, LOW);
   digitalWrite(ELEMENT, LOW);
   //test if boiler too hot, if it is pump some water to cool it
