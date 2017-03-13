@@ -67,6 +67,7 @@ const int STATE_HEATING = 2;
 const int STATE_COOL_DOWN = 3;
 const int STATE_ERROR = 4;
 const int STATE_OFF = 5;
+const int STATE_WIND_DOWN = 6;
 //Buttons (numbers from left
 const int BUTTON_1 = 13;
 const int BUTTON_2 = 12;
@@ -94,16 +95,11 @@ const int DZ_SUPPLY = 6; //Need a pin to supply 5v that is passed to DZ_PIN when
 unsigned long debounce_start = 0; //button press debounce
 unsigned long element_start = 0;
 unsigned long fan_start = 0;
-unsigned long fallback_fan_start = 0;
-unsigned long fan_time;
-unsigned long element_time;
 unsigned long auger_start = 0;
-unsigned long auger_time;
 unsigned long reset_start_count_timer;
 unsigned long state_trans_start = 0;
 unsigned long state_trans_stop = 0;
 unsigned long stop_start = 0; //for  fan short cycling
-unsigned long error_timer = 0; //for dropping inot error in start loop
 unsigned long start_feed_time = 0;//pellets
 unsigned long start_feed_pause = 0;//pellets
 unsigned long start_pump_time = 0;//pump short cycling
@@ -130,6 +126,7 @@ float divisor;
 //state stuff
 String reason = "";
 int state;
+int this_state;
 //reading flame value stuff and smoothing
 FastRunningMedian<int, 32, 1> newMedian;
 // Constructor: 
@@ -192,7 +189,7 @@ unsigned long prevMillis;
   String PID_FEED = "boiler/pid/feed";
   String PID_PAUSE = "boiler/pid/pause";
   String START_COUNT_TOP = "boiler/start_count";
-  const String STATES_STRING[] = {"Idle","Starting","Heating","Cool down","Error","Off"};
+  const String STATES_STRING[] = {"Idle","Starting","Heating","Cool down","Error","Off","Wind down"};
   
   //publish functions overloaded for int/string as payload
   void publish(String top,int payload) { //publish data
@@ -559,7 +556,7 @@ void cool_to_stop(int target_state) {
       fan_start = 0; //still have light so reset final blow
     }
   //Keep pumping heat into house until boiler cool
-  if (water_temp < MID_TEMP){
+  if (water_temp < (MID_TEMP - 2)){
     pump(false);
     #ifdef debug
       Serial.print(" Pump off ");
@@ -574,9 +571,7 @@ void cool_to_stop(int target_state) {
         state_trans_start = millis();
       }
       if ((long)(millis() - state_trans_start) > STATE_CHANGE_THRES) {
-        if (target_state == STATE_OFF) {
-        start_count = 0;
-        }else if (target_state == STATE_ERROR) {
+        if (target_state == STATE_ERROR) {
           #ifdef mqtt
             //
             publish(ERROR_TOPIC, reason);
@@ -621,6 +616,27 @@ void housekeeping() {
   if (elem) {
     elem = false;
   }
+  if (element_start != 0) {
+    element_start = 0;
+  }
+  if (fan_start != 0) {
+    fan_start = 0;
+  }
+  if (auger_start != 0) {
+    auger_start = 0;
+  }
+  if (reset_start_count_timer != 0) {
+    reset_start_count_timer = 0;
+  }
+  if (state_trans_start != 0) {
+    state_trans_start = 0;
+  }
+  if (state_trans_stop != 0) {
+    state_trans_stop = 0;
+  }
+  if (stop_start != 0) {
+    stop_start = 0;
+  }
 }
 
 //blow fan for a time
@@ -636,6 +652,37 @@ void blow() {
     blowing = false;
   }
 }
+
+
+void safety() {
+  water_temp = int(Thermistor(analogRead(WATER_TEMP)));
+  if (water_temp > TOO_HOT_TEMP) {
+    this_state = STATE_ERROR;
+    state = STATE_WIND_DOWN;
+    reason = "Too hot";
+    #ifdef mqtt
+      //
+      publish(STATE_TOPIC, STATES_STRING[state]);
+    #endif    
+  }
+  //if auger too hot go into error
+  auger_temp = int(Thermistor(analogRead(AUGER_TEMP)));
+  if (auger_temp > AUGER_OVER_TEMP) {
+    state = STATE_ERROR;
+    reason = "Auger too hot";
+    #ifdef mqtt
+      //
+      publish(ERROR_TOPIC, reason);
+      publish(STATE_TOPIC, STATES_STRING[state]);
+      reason = "";
+    #endif    
+    #ifdef debug
+      Serial.print("Auger temp is: ");
+      Serial.print(auger_temp);
+    #endif
+  }
+}
+
 //state fucntions *****************************************************************
 void proc_idle() {
   housekeeping();
@@ -664,7 +711,6 @@ void proc_start_up() {
       //
       publish(ERROR_TOPIC, reason);
       reason = "";
-      error_timer = 0;
       dump = false;
     #endif
    }
@@ -831,15 +877,6 @@ void proc_cool_down() {
    */
   digitalWrite(AUGER, LOW);
   digitalWrite(ELEMENT, LOW);
-  if (water_temp > TOO_HOT_TEMP) {
-    cool_to_stop(STATE_ERROR);
-    reason = "Too hot";
-    #ifdef mqtt
-      //
-      publish(ERROR_TOPIC, reason);
-      reason = "";
-    #endif 
-  }
   if (water_temp > HIGH_TEMP) {
     //stop_fan();
     fan(false, 0);
@@ -866,8 +903,8 @@ void proc_cool_down() {
     }
     if (digitalRead(DZ_PIN) == HIGH) {
       //no heat needed so empty fire box
-      cool_to_stop(STATE_IDLE);
-      start_count = 0;
+      this_state = STATE_IDLE;
+      state = STATE_WIND_DOWN;
     }
   }  
 }
@@ -883,8 +920,8 @@ void proc_error() {
   digitalWrite(ELEMENT, LOW);
   //test if boiler too hot, if it is pump some water to cool it
   if (water_temp > MID_TEMP) {
-    //start pump
-    pump(true);
+    this_state = state;
+    state = STATE_WIND_DOWN;
   }else {
     housekeeping();//turn everything off and keep checking it is off
   }
@@ -921,7 +958,8 @@ void proc_off() {
   reason = "";
   //if too hot pump unitl not:
   if ((water_temp > MID_TEMP) || (flame_val > FLAME_VAL_THRESHOLD)) {
-    cool_to_stop(STATE_OFF);    
+    this_state = state;
+    state = STATE_WIND_DOWN;   
   }else {
     housekeeping();//turn everything off and keep checking it is off
   }
@@ -959,35 +997,6 @@ void proc_off() {
     }
   }
 }
-
-void safety() {
-  water_temp = int(Thermistor(analogRead(WATER_TEMP)));
-  if (water_temp > TOO_HOT_TEMP) {
-    cool_to_stop(STATE_ERROR);
-    reason = "Too hot";
-    #ifdef mqtt
-      //
-      publish(STATE_TOPIC, STATES_STRING[state]);
-    #endif    
-  }
-  //if auger too hot go into error
-  auger_temp = int(Thermistor(analogRead(AUGER_TEMP)));
-  if (auger_temp > AUGER_OVER_TEMP) {
-    state = STATE_ERROR;
-    reason = "Auger too hot";
-    #ifdef mqtt
-      //
-      publish(ERROR_TOPIC, reason);
-      publish(STATE_TOPIC, STATES_STRING[state]);
-      reason = "";
-    #endif    
-    #ifdef debug
-      Serial.print("Auger temp is: ");
-      Serial.print(auger_temp);
-    #endif
-  }
-}
-
 
 void loop() {
   safety();
@@ -1059,6 +1068,9 @@ void loop() {
      case STATE_OFF:
       proc_off();
       break;
+    case STATE_WIND_DOWN:
+      cool_to_stop(this_state);
+      break;
   }
   #ifdef debug
     Serial.print("State = ");
@@ -1122,7 +1134,6 @@ void loop() {
   if (reset) {
     if ((long)(millis() -  reset_start_count_timer) > RESET_THRESHOLD) {
       start_count = 0;
-      error_timer = 0;
       reset_start_count_timer = 0;
       reset = false;
     }
