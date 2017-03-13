@@ -123,7 +123,7 @@ bool feeding = true;
 bool cooling = false;
 bool dump = false;
 bool elem = false;
-//bool runFan; declared in fan function
+bool blowing = false;
 //maths
 int proportion;
 float divisor;
@@ -310,7 +310,7 @@ void setup() {
   #endif
 }
 
-//Functions that so stuff ********************************************************************
+//Functions that do stuff ********************************************************************
 void fan(bool runFan, int x) {
   #ifdef mqtt
     fan_power = x;
@@ -509,6 +509,8 @@ void going_yet() {
     }
     if ((long)(millis() - state_trans_start) > STATE_CHANGE_THRES_UP) {
       digitalWrite(AUGER, LOW);
+      digitalWrite(ELEMENT, LOW);
+      blowing = false;
       state = STATE_HEATING;
       #ifdef mqtt
         //
@@ -621,7 +623,19 @@ void housekeeping() {
   }
 }
 
-
+//blow fan for a time
+void blow() {
+  fan(true, 100);
+  if (fan_start == 0) {
+    fan_start = millis();
+    blowing = true;
+  }
+  if ((long)(millis() - fan_start) > START_FAN_TIME) {
+    fan(false, 0);
+    fan_start = 0;
+    blowing = false;
+  }
+}
 //state fucntions *****************************************************************
 void proc_idle() {
   housekeeping();
@@ -644,21 +658,16 @@ void proc_idle() {
 void proc_start_up() {
   //kill if failed to start too many times
   if (start_count > 2) {
-    if (error_timer == 0) { //wait and fan for a while before erroring
-      error_timer =  millis();
-    }
-    if ((long)(millis() - error_timer) > ERROR_THRES) {
-      state = STATE_ERROR;
-      reason = "failed to start";
-      #ifdef mqtt
-        //
-        publish(ERROR_TOPIC, reason);
-        reason = "";
-        error_timer = 0;
-      #endif
-    }
-    fan(true, 60); //meanwhile, fan shit    
-  }
+    state = STATE_ERROR;
+    reason = "failed to start";
+    #ifdef mqtt
+      //
+      publish(ERROR_TOPIC, reason);
+      reason = "";
+      error_timer = 0;
+      dump = false;
+    #endif
+   }
   #ifdef debug
 //    Serial.print("runFan = ");
 //    Serial.print(runFan);
@@ -668,14 +677,9 @@ void proc_start_up() {
   #endif
   going_yet(); //perform check in each loop
   if (start_count == 0) {
-    fan(true, 100); //unless flag set to false
-    if (fan_start == 0) {
-      fan_start = millis();
-    }
-    if ((long)(millis() - fan_start) > START_FAN_TIME) {
-      fan(false, 0);
+   blow();
+   if (!blowing) {
       start_count++; //increment out of this loop
-      fan_start = 0;
       dump = true;
     }
   }
@@ -684,7 +688,6 @@ void proc_start_up() {
       fan(false, 0);
       if (auger_start == 0) {
         auger_start = millis();
-        
       }
       if (start_count == 1) {
         if ((long)(millis() - auger_start) > START_FEED_TIME) {
@@ -722,23 +725,11 @@ void proc_start_up() {
       //test to see if element been on for too enough and stop it if it has
       if ((long)(millis() - element_start) > ELEMENT_TIME) {
         digitalWrite(ELEMENT, LOW);
-//        #ifdef debug
-//          Serial.println("Element on long enough so turned off");
-//        #endif        
-        fan(true, 60);
-        if (fallback_fan_start == 0) {
-          fallback_fan_start = millis();
-        } //loop back to see if going for a bit
-        if ((long)(millis() - fallback_fan_start) > START_FAN_TIME) { //no flame made - hopeless so start again
-          fan(false, 0);
-          fallback_fan_start = 0;
-          //go back to start and dump another load
-          auger_start = 0;
-          //increment start count
+        blow();
+        if (!blowing) {
           start_count++;
           elem = false;
           dump = true;
-          fan_start = 0;
         }
       }else {
         digitalWrite(ELEMENT, HIGH); //start element
