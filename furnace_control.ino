@@ -1,5 +1,4 @@
 /* ToDo
- *  - Publish pid percentages for pause, feed adn fan
  *  - check lcd working
  *  - put ultrasound probe on analoge pins (as digital?)
  */
@@ -43,7 +42,7 @@ const long START_FAN_TIME = 90000; //90s in ms for time to blow to see if flame 
 const long END_FAN_TIME = 360000; //6min of blow to empty puck from burn box
 const long PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
 const int BUTTON_ON_THRESHOLD = 1500;//1.5s in ms for turning from off to idle and vice versa
-const long FEED_PAUSE = 40000; //60s and calculating a result so might need to be a float
+const long FEED_PAUSE = 24000; //60s and calculating a result so might need to be a float
 const long FEED_TIME = 10000;//default pellet feed time
 const long STATE_CHANGE_THRES = 5000;//time that needs to elapse before changing STATE_START_UP <- STATE_HEATING
 const long STATE_CHANGE_THRES_UP = 2000;//time that needs to elapse before changing STATE_START_UP -> STATE_HEATING
@@ -277,9 +276,9 @@ void setup() {
     //initialize the PID variables we're linked to
     fanPID.SetOutputLimits(30, 80); //percentage of fan power
     fanPID.SetSampleTime(3000); //SAMPLES EVERY 3s
-    pausePID.SetOutputLimits(60,100); //percentage of feed time check to see that burning all of load
+    pausePID.SetOutputLimits(100, 170); //percentage of feed time check to see that burning all of load
     pausePID.SetSampleTime(3000);
-    feedPID.SetOutputLimits(40,100); //percentage of feed time check to see that burning all of load
+    feedPID.SetOutputLimits(60,100); //percentage of feed time check to see that burning all of load
     feedPID.SetSampleTime(3000);
     //turn the PID on
     fanPID.SetMode(AUTOMATIC);
