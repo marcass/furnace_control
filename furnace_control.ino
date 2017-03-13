@@ -36,7 +36,7 @@
 //timers
 const long ELEMENT_TIME = 360000; //6min in ms
 const long START_FEED_TIME = 110000; //2min 10s in ms for pellet feed initially (includes little predump)
-const long SUBSEQUENT_START_FEED_TIME = 10000; //little top up of pellets if not starting first time
+const long SUBSEQUENT_START_FEED_TIME = 5000; //little top up of pellets if not starting first time
 const long START_FAN_TIME = 90000; //90s in ms for time to blow to see if flame present
 //const long DUMP_START = 45000;//45s of fanning before throwing a little fuel on the fire
 const long END_FAN_TIME = 360000; //6min of blow to empty puck from burn box
@@ -95,7 +95,7 @@ unsigned long debounce_start = 0; //button press debounce
 unsigned long element_start = 0;
 unsigned long fan_start = 0;
 unsigned long auger_start = 0;
-unsigned long reset_start_count_timer;
+unsigned long reset_dump_count;
 unsigned long state_trans_start = 0;
 unsigned long state_trans_stop = 0;
 unsigned long stop_start = 0; //for  fan short cycling
@@ -112,6 +112,7 @@ int flame_val; // range from 0 to 1024 ( i think)
 int start_count = 0;
 int crosses;
 int counts;
+int dump_count = 0;//counter to make sure we don't fill up chamber with pellets
 //tests
 bool reset = false;
 bool feeding = true;
@@ -508,6 +509,7 @@ void going_yet() {
       digitalWrite(ELEMENT, LOW);
       blowing = false;
       state = STATE_HEATING;
+      start_count = 0;
       #ifdef mqtt
         //
         publish(STATE_TOPIC, STATES_STRING[state]);
@@ -515,8 +517,8 @@ void going_yet() {
       fan_start = 0;
       element_start = 0;
       auger_start = 0;
-      reset = true; //watch for timer to reset start count
-      reset_start_count_timer = millis();
+      reset = true; //watch for timer to reset dump_count
+      reset_dump_count = millis();
       state_trans_start = 0;
       dump = false;
     } //else keep coming back to check
@@ -624,8 +626,11 @@ void housekeeping() {
   if (auger_start != 0) {
     auger_start = 0;
   }
-  if (reset_start_count_timer != 0) {
-    reset_start_count_timer = 0;
+  if (reset_dump_count != 0) {
+    reset_dump_count = 0;
+  }
+  if (reset) {
+    reset = false;
   }
   if (state_trans_start != 0) {
     state_trans_start = 0;
@@ -635,6 +640,9 @@ void housekeeping() {
   }
   if (stop_start != 0) {
     stop_start = 0;
+  }
+  if (start_count != 0) {
+    start_count = 0;
   }
 }
 
@@ -734,21 +742,23 @@ void proc_start_up() {
       if (auger_start == 0) {
         auger_start = millis();
       }
-      if (start_count == 1) {
+      if (dump_count == 0) {
         if ((long)(millis() - auger_start) > START_FEED_TIME) {
           //stop feeding pellets
           digitalWrite(AUGER, LOW);
           dump = false;
+          dump_count++;
           elem = true;
           #ifdef debug
             Serial.print("  Auger off  ");
           #endif
         }
       }
-      if (start_count > 1) { //don't want to overload pellet chamber
+      if (dump_count > 0) { //don't want to overload pellet chamber
         if ((long)(millis() - auger_start) > SUBSEQUENT_START_FEED_TIME) {
         //stop feeding pellets
         digitalWrite(AUGER, LOW);
+        dump_count++;
         dump = false;
         elem = true;
         #ifdef debug
@@ -793,6 +803,12 @@ void proc_start_up() {
 }
 
 void proc_heating() {
+  if (reset) {//reset dump count after it's been in here for a while
+    if ((long)(millis() -  reset_dump_count) > RESET_THRESHOLD) {
+      reset_dump_count = 0;
+      reset = false;
+    }
+  }
   //do i want to have an intial hot run ot burn pellet load from start?
   #ifdef pid
     //set fan power and pellets pausse variable via PID lib here
@@ -1130,11 +1146,4 @@ void loop() {
       }
     #endif
   //delay(200); //can't read form serial with delay
-  if (reset) {
-    if ((long)(millis() -  reset_start_count_timer) > RESET_THRESHOLD) {
-      start_count = 0;
-      reset_start_count_timer = 0;
-      reset = false;
-    }
-  }
 }
