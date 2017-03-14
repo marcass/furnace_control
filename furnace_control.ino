@@ -66,7 +66,6 @@ const int STATE_HEATING = 2;
 const int STATE_COOL_DOWN = 3;
 const int STATE_ERROR = 4;
 const int STATE_OFF = 5;
-const int STATE_WIND_DOWN = 6;
 //Buttons (numbers from left
 const int BUTTON_1 = 13;
 const int BUTTON_2 = 12;
@@ -430,6 +429,7 @@ void fan_and_pellet_management() {
   if (water_temp < LOW_TEMP) { //go hard on the fan
     fan(true, 100);
   }else if (water_temp > HIGH_TEMP) {
+    this_state = STATE_HEATING;
     state = STATE_COOL_DOWN;
     #ifdef mqtt
       //
@@ -541,10 +541,16 @@ void going_yet() {
 }
 
 void cool_to_stop(int target_state) {
+  if (target_state == STATE_ERROR) {
+    #ifdef mqtt
+      //
+      publish(ERROR_TOPIC, reason);
+    #endif  
+  }
   //make sure stuff stays off
   digitalWrite(AUGER, LOW);
   digitalWrite(ELEMENT, LOW);
-  if (water_temp > HIGH_TEMP) {
+  if (water_temp > (temp_set_point + 7)) { //7 seems a reasonable hysteresis value
     fan(false, 0);
   }else {
     fan(true, 100);
@@ -557,7 +563,7 @@ void cool_to_stop(int target_state) {
       fan_start = 0; //still have light so reset final blow
     }
   //Keep pumping heat into house until boiler cool
-  if (water_temp < (MID_TEMP - 2)){
+  if (water_temp < (temp_set_point - 2)){
     pump(false);
     #ifdef debug
       Serial.print(" Pump off ");
@@ -566,26 +572,14 @@ void cool_to_stop(int target_state) {
       fan_start = millis();
     }
     if ((long)(millis() - fan_start) > END_FAN_TIME) { 
-      //stop_fan(); //puck blown to peices, clean grate for next light
-      fan(false, 0);
-      if (state_trans_start == 0) { //smooth state transitions
-        state_trans_start = millis();
-      }
-      if ((long)(millis() - state_trans_start) > STATE_CHANGE_THRES) {
-        if (target_state == STATE_ERROR) {
-          #ifdef mqtt
-            //
-            publish(ERROR_TOPIC, reason);
-          #endif  
-        }
-        state = target_state;
-        #ifdef mqtt
-          //
-          publish(STATE_TOPIC, STATES_STRING[state]);
-        #endif   
-        state_trans_start = 0;
-        fan_start = 0;
-      } //else keep coming back to check 
+      fan(false, 0); //puck blown to peices, clean grate for next light
+      state = target_state;
+      #ifdef mqtt
+        //
+        publish(STATE_TOPIC, STATES_STRING[state]);
+      #endif   
+      fan_start = 0;
+      //else keep coming back to check 
     } 
   }else {
     //start pump to dump heat
@@ -665,7 +659,7 @@ void safety() {
   water_temp = int(Thermistor(analogRead(WATER_TEMP)));
   if (water_temp > TOO_HOT_TEMP) {
     this_state = STATE_ERROR;
-    state = STATE_WIND_DOWN;
+    state = STATE_COOL_DOWN;
     reason = "Too hot";
     #ifdef mqtt
       //
@@ -800,6 +794,11 @@ void proc_start_up() {
     Serial.print("Start count = ");
     Serial.print(start_count);
   #endif   
+  if (water_temp > LOW_TEMP) {
+    pump(true);
+  }else {
+    pump(false);
+  }
 }
 
 void proc_heating() {
@@ -827,14 +826,15 @@ void proc_heating() {
       Serial.print("%  ");
     #endif
   #endif
-  //test to see if dz aborts
-  if (digitalRead(DZ_PIN) == HIGH) {
-    state = STATE_COOL_DOWN;
-    #ifdef mqtt
-      //
-      publish(STATE_TOPIC, STATES_STRING[state]);
-    #endif    
-  }
+//  //test to see if dz aborts
+//  if (digitalRead(DZ_PIN) == HIGH) {
+//    this_state = STATE_IDLE;
+//    state = STATE_COOL_DOWN;
+//    #ifdef mqtt
+//      //
+//      publish(STATE_TOPIC, STATES_STRING[state]);
+//    #endif    
+//  }
   //dump pellets into flame box with timed auger runs
   //run the fan. 
   //If not enough flame start again
@@ -871,55 +871,38 @@ void proc_heating() {
       Serial.print(" Pump on ");
     #endif    
     //kill fan if too hot
-    if (water_temp > HIGH_TEMP) {
-      state = STATE_COOL_DOWN;
-      #ifdef mqtt
-        //
-        publish(STATE_TOPIC, STATES_STRING[state]);
-      #endif
-    }
+//    if (water_temp > HIGH_TEMP) {
+//      this_state = STATE_HEATING;
+//      state = STATE_COOL_DOWN;
+//      #ifdef mqtt
+//        //
+//        publish(STATE_TOPIC, STATES_STRING[state]);
+//      #endif
+//    }
   }
   if (water_temp < LOW_TEMP) {
     pump(false);
   }
 }
 
-void proc_cool_down() {
+void proc_cool_down(int pass_through_state) {
   /*order goes like this:
-   * 1. Too hot? -> pump to get below mid range and check dz pin
-   * 2. DZ pin LOW (heating) -> STATE_HEATING
-   * 3. DZ pin HIGH (off) -> keep pumping/blowing until firebox empty and cooled boiler
+   * 1. Too hot? -> pump to get below mid range
+   * 2. send to heating if heating sent to cool down
+   * 3. send to error/off/idle if they sent to cool down
    */
   digitalWrite(AUGER, LOW);
   digitalWrite(ELEMENT, LOW);
-  if (water_temp > HIGH_TEMP) {
-    //stop_fan();
-    fan(false, 0);
-    //pump some water to cool it
-    pump(true);
+  pump(true);
+  if (water_temp > (HIGH_TEMP - 1)) {
     #ifdef debug
       Serial.println("Fan, auger and element off, pump on TOO HOT");
     #endif    
-  }
-  if (water_temp > MID_TEMP) {
-    pump(true);
-    //fan(true, 50); //gentle blow to keep things ticking over
-  }
-  //not too hot but now but could be cooler
-  if (water_temp < MID_TEMP) {
-    if (digitalRead(DZ_PIN) == LOW) {
-      //get back to heating
-      fan_start = 0;
-      state = STATE_START_UP;
-      #ifdef mqtt
-        //
-        publish(STATE_TOPIC, STATES_STRING[state]);
-      #endif      
-    }
-    if (digitalRead(DZ_PIN) == HIGH) {
-      //no heat needed so empty fire box
-      this_state = STATE_IDLE;
-      state = STATE_WIND_DOWN;
+  }else if (water_temp > temp_set_point) {
+    if (pass_through_state != STATE_HEATING) { // not heating so cool down to stop
+      cool_to_stop(pass_through_state);
+    }else if (water_temp < (temp_set_point + 2)) { //go back heating once enough heat has been dumped
+      state = STATE_HEATING;
     }
   }  
 }
@@ -936,7 +919,7 @@ void proc_error() {
   //test if boiler too hot, if it is pump some water to cool it
   if (water_temp > MID_TEMP) {
     this_state = state;
-    state = STATE_WIND_DOWN;
+    state = STATE_COOL_DOWN;
   }else {
     housekeeping();//turn everything off and keep checking it is off
   }
@@ -974,7 +957,7 @@ void proc_off() {
   //if too hot pump unitl not:
   if ((water_temp > MID_TEMP) || (flame_val > FLAME_VAL_THRESHOLD)) {
     this_state = state;
-    state = STATE_WIND_DOWN;   
+    state = STATE_COOL_DOWN;   
   }else {
     housekeeping();//turn everything off and keep checking it is off
   }
@@ -1019,6 +1002,7 @@ void loop() {
   //dz calls it: 1-wire relay gets closed by DZ3
   if (digitalRead(DZ_PIN) == HIGH) {
     if ((state == STATE_HEATING) || (state == STATE_START_UP)) {
+      this_state = STATE_IDLE;
       state = STATE_COOL_DOWN;
       #ifdef mqtt
         //
@@ -1075,16 +1059,13 @@ void loop() {
       proc_heating();
       break;
     case STATE_COOL_DOWN:
-      proc_cool_down();
+      proc_cool_down(this_state);
       break;
     case STATE_ERROR:
       proc_error();
       break;
      case STATE_OFF:
       proc_off();
-      break;
-    case STATE_WIND_DOWN:
-      cool_to_stop(this_state);
       break;
   }
   #ifdef debug
