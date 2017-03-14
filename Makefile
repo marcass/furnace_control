@@ -10,5 +10,5 @@
 
 ARDUINO_LIBS	= pid
 BOARD_TAG	= atmega328
-MONITOR_PORT	= /dev/ttyUSB0
+MONITOR_PORT	= /dev/arduino #/dev/ttyUSB0
 include	 /usr/share/arduino/Arduino.mk
