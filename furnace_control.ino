@@ -188,6 +188,7 @@ unsigned long prevMillis;
   String PID_FEED = "boiler/pid/feed";
   String PID_PAUSE = "boiler/pid/pause";
   String START_COUNT_TOP = "boiler/start_count";
+  String TEMP_SET_POINT_TOP = "boiler/temp/setpoint";
   const String STATES_STRING[] = {"Idle","Starting","Heating","Cool down","Error","Off","Wind down"};
   
   //publish functions overloaded for int/string as payload
@@ -978,20 +979,20 @@ void proc_off() {
       inputString = "";
       stringComplete = false;
       (int)temp_set_point++;
-      reason = String("Increase, now: " + (int)temp_set_point);
-      #ifdef mqtt
-        //
-        publish(ERROR_TOPIC, reason);
-      #endif
+//      reason = String("Increase, now: " + (int)temp_set_point);
+//      #ifdef mqtt
+//        //
+//        publish(ERROR_TOPIC, reason);
+//      #endif
     }else if (inputString.startsWith("Decrease SetPoint")) {
       inputString = "";
       stringComplete = false;
       (int)temp_set_point--;
-      reason = String("Decrease, now: " + (int)temp_set_point);
-      #ifdef mqtt
-        //
-        publish(ERROR_TOPIC, reason);
-      #endif
+//      reason = String("Decrease, now: " + (int)temp_set_point);
+//      #ifdef mqtt
+//        //
+//        publish(ERROR_TOPIC, reason);
+//      #endif
     }
   }
 }
@@ -1080,8 +1081,8 @@ void loop() {
     if ((state == STATE_START_UP) or (state == STATE_HEATING) or (state == STATE_COOL_DOWN)) { //publish messages
       //get flame_val average
       flame_value_median();
-      int mosqPayload[] = {water_temp, auger_temp, flame_val, state, fan_power, feed_percent, feed_pause_percent, start_count};
-      const String mosqTop[] = {WATER_TEMP_TOPIC, AUGER_TEMP_TOPIC, FLAME_TOPIC, STATE_TOPIC, PID_FAN, PID_FEED, PID_PAUSE, START_COUNT_TOP};
+      int mosqPayload[] = {water_temp, auger_temp, flame_val, state, fan_power, feed_percent, feed_pause_percent, temp_set_point};
+      const String mosqTop[] = {WATER_TEMP_TOPIC, AUGER_TEMP_TOPIC, FLAME_TOPIC, STATE_TOPIC, PID_FAN, PID_FEED, PID_PAUSE, TEMP_SET_POINT_TOP};
       //publish everything in a round robin fashion
       unsigned long currentMillis = millis();
       if(currentMillis - previousMillis > PUB_INTERVAL) { //publish info
