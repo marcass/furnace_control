@@ -624,9 +624,12 @@ void housekeeping() {
   if (reset_dump_count != 0) {
     reset_dump_count = 0;
   }
-  if (reset) {
-    reset = false;
+  if (dump_count > 0) {
+    dump_count = 0;
   }
+//  if (reset) {
+//    reset = false;
+//  }
   if (state_trans_start != 0) {
     state_trans_start = 0;
   }
@@ -803,13 +806,13 @@ void proc_start_up() {
 }
 
 void proc_heating() {
-  if (reset) {//reset dump count after it's been in here for a while
-    if ((long)(millis() -  reset_dump_count) > RESET_THRESHOLD) {
-      reset_dump_count = 0;
-      reset = false;
-      dump_count = 0;
-    }
-  }
+//  if (dump_count > 0) {//reset dump count after it's been in here for a while
+//    if ((long)(millis() -  reset_dump_count) > RESET_THRESHOLD) {
+//      reset_dump_count = 0;
+////      reset = false;
+//      dump_count = 0;
+//    }
+//  }
   //do i want to have an intial hot run ot burn pellet load from start?
   #ifdef pid
     //set fan power and pellets pausse variable via PID lib here
