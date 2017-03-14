@@ -962,44 +962,12 @@ void proc_off() {
   }else {
     housekeeping();//turn everything off and keep checking it is off
   }
-  //do stuff if serial comms received
-  if (stringComplete) {
-    if (inputString.startsWith("Turn On Boiler")) {
-      inputString = "";
-      stringComplete = false;
-      state = STATE_IDLE;
-      reason = "";
-      #ifdef mqtt
-        //
-        publish(ERROR_TOPIC, reason); //clear error register
-      #endif    
-      start_count = 0;  
-      //delay(10);
-    }else if (inputString.startsWith("Increase SetPoint")) {
-      inputString = "";
-      stringComplete = false;
-      (int)temp_set_point++;
-//      reason = String("Increase, now: " + (int)temp_set_point);
-//      #ifdef mqtt
-//        //
-//        publish(ERROR_TOPIC, reason);
-//      #endif
-    }else if (inputString.startsWith("Decrease SetPoint")) {
-      inputString = "";
-      stringComplete = false;
-      (int)temp_set_point--;
-//      reason = String("Decrease, now: " + (int)temp_set_point);
-//      #ifdef mqtt
-//        //
-//        publish(ERROR_TOPIC, reason);
-//      #endif
-    }
-  }
 }
 
 void loop() {
+  //***************   safety  *********************
   safety();
-  //see if we need to turn on or off
+  //*************  see if we need to turn on or off  **************
   //dz calls it: 1-wire relay gets closed by DZ3
   if (digitalRead(DZ_PIN) == HIGH) {
     if ((state == STATE_HEATING) || (state == STATE_START_UP)) {
@@ -1048,7 +1016,28 @@ void loop() {
       #endif        
       //delay(10);
     }
+    if (inputString.startsWith("Turn On Boiler")) {
+      inputString = "";
+      stringComplete = false;
+      state = STATE_IDLE;
+      reason = "";
+      #ifdef mqtt
+        //
+        publish(ERROR_TOPIC, reason); //clear error register
+      #endif    
+      start_count = 0;  
+      //delay(10);
+    }else if (inputString.startsWith("Increase SetPoint")) {
+      inputString = "";
+      stringComplete = false;
+      (int)temp_set_point++;
+    }else if (inputString.startsWith("Decrease SetPoint")) {
+      inputString = "";
+      stringComplete = false;
+      (int)temp_set_point--;
+    }
   }
+  
   switch (state) {
     case STATE_IDLE:
       proc_idle();
