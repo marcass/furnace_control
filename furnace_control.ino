@@ -6,7 +6,7 @@
 /*******************************
  BOILER CONTROL
  *******************************/
-//#define debug
+#define debug
 #define pid //use if PID controlling fan output
 //#define no_PID //use if not pid controlling
 #define mqtt
@@ -807,6 +807,7 @@ void proc_heating() {
     if ((long)(millis() -  reset_dump_count) > RESET_THRESHOLD) {
       reset_dump_count = 0;
       reset = false;
+      dump_count = 0;
     }
   }
   //do i want to have an intial hot run ot burn pellet load from start?
