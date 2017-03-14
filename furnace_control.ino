@@ -564,7 +564,7 @@ void cool_to_stop(int target_state) {
       fan_start = 0; //still have light so reset final blow
     }
   //Keep pumping heat into house until boiler cool
-  if (water_temp < (temp_set_point - 2)){
+  if (water_temp < (temp_set_point + 2)){
     pump(false);
     #ifdef debug
       Serial.print(" Pump off ");
@@ -899,10 +899,10 @@ void proc_cool_down(int pass_through_state) {
     #ifdef debug
       Serial.println("Fan, auger and element off, pump on TOO HOT");
     #endif    
-  }else if (water_temp > temp_set_point) {
+  }else if (water_temp > (temp_set_point - 2)) {
     if (pass_through_state != STATE_HEATING) { // not heating so cool down to stop
       cool_to_stop(pass_through_state);
-    }else if (water_temp < (temp_set_point + 2)) { //go back heating once enough heat has been dumped
+    }else if (water_temp < temp_set_point) { //go back heating once enough heat has been dumped
       state = STATE_HEATING;
     }
   }  
