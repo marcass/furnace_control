@@ -33,7 +33,7 @@
  * Constants
  */
 //timers
-const long ELEMENT_TIME = 360000; //6min in ms
+const long ELEMENT_TIME = 363000; //6.5min in ms
 const long START_FEED_TIME = 110000; //2min 10s in ms for pellet feed initially (includes little predump)
 const long SUBSEQUENT_START_FEED_TIME = 5000; //little top up of pellets if not starting first time
 const long START_FAN_TIME = 90000; //90s in ms for time to blow to see if flame present
