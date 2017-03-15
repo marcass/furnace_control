@@ -312,34 +312,23 @@ void fan(bool runFan, int x) {
     fan_power = x;
   #endif
   if (!runFan) {
-//    if (stop_start == 0) { //dont' short cycle fan
-//      stop_start = millis();
-//    }
-//    if ((long)(millis() - stop_start) > STOP_THRESH) {
-      digitalWrite(GATE,LOW);
-      #ifdef debug
-        Serial.print("  Fan off  ");
-      #endif 
-      //undo phase angle magic here 
-      TCCR1B = 0x00;
-      TIMSK1 = 0x00;    //disable comparator A and overflow interrupts
-      TCCR1A = 0x00;    //timer control registers set for
-      TCCR1B = 0x00;    //normal operation, timer disabled
-      stop_start = 0;
-      power = 0;
-//    }
+    digitalWrite(GATE,LOW);
+    //undo phase angle magic here 
+    TCCR1B = 0x00;
+    TIMSK1 = 0x00;    //disable comparator A and overflow interrupts
+    TCCR1A = 0x00;    //timer control registers set for
+    TCCR1B = 0x00;    //normal operation, timer disabled
+    stop_start = 0;
+    power = 0;
   }
   if (runFan) {
+    #ifdef debug
+      Serial.print(" FAN ON at ");
+      Serial.print(x);
+    #endif
     if (x == 100) { //no phase angle control needed if you want balls out fan speed
       digitalWrite(GATE,HIGH);
-      #ifdef debug
-        Serial.print("  Fan on 100%  ");
-      #endif    
     }else {
-      #ifdef debug
-        Serial.print(" FAN ON at ");
-        Serial.print(x);
-      #endif
       //do magic phase angle stuff here
       /* x is the int as a percentage of fan power
        * OCR1A is the comparator for the phase angle cut-off
@@ -358,11 +347,6 @@ void fan(bool runFan, int x) {
       divisor = (float)x / 100;
       proportion = divisor * 520;
       on_wait = 520 - proportion;
-  //    #ifdef debug
-  //      Serial.print("on_wait = ");
-  //      Serial.print(on_wait);
-  //      Serial.print("  ");
-  //    #endif
       if ( on_wait < 104) {
         OCR1A = 104;
       }
@@ -375,27 +359,11 @@ void fan(bool runFan, int x) {
   }
 }
 
-//void stop_fan() {
-//  if (stop_start == 0) { //dont' short cycle fan
-//    stop_start = millis();
-//  }
-//  if (millis() - stop_start > STOP_THRESH) {
-//    digitalWrite(GATE,LOW);
-//    runFan = false;
-//    #ifdef debug
-//      Serial.print("  Fan off  ");
-//    #endif 
-//    //undo phase angle magic here 
-//    TCCR1B = 0x00;
-//    TIMSK1 = 0x00;    //disable comparator A and overflow interrupts
-//    TCCR1A = 0x00;    //timer control registers set for
-//    TCCR1B = 0x00;    //normal operation, timer disabled
-//    stop_start = 0;
-//    power = 0;
-//  }
-//}
-
 void pump(bool on) { //prevents short cycling of pump
+  #ifdef debug
+    Serial.print(" Pump: ");
+    Serial.print(on);
+  #endif 
   if (on) {
     digitalWrite(PUMP, HIGH);
     if (start_pump_time == 0) {    //avoid short cycling so pump for at least 30s
@@ -405,9 +373,6 @@ void pump(bool on) { //prevents short cycling of pump
   if (!on) {
     if ((long)(millis() - start_pump_time) > PUMP_TIME) {
       digitalWrite(PUMP, LOW);
-      #ifdef debug
-        Serial.print("  Pump off  ");
-      #endif      
       start_pump_time = 0;
     }
   }
@@ -482,14 +447,14 @@ void fan_and_pellet_management() {
       feeding = true;
     }
   }
-  #ifdef debug
-    Serial.print(" Time left to feed = ");
-    Serial.print(feed_time - (millis()-start_feed_time));
-    Serial.print("  Time left in pause = ");
-    Serial.println(feed_pause - (millis()-start_feed_pause));
-//      Serial.print("  Feed pause percent = ");
-//      Serial.print(feed_pause_percent);
-  #endif
+//  #ifdef debug
+//    Serial.print(" Time left to feed = ");
+//    Serial.print(feed_time - (millis()-start_feed_time));
+//    Serial.print("  Time left in pause = ");
+//    Serial.println(feed_pause - (millis()-start_feed_pause));
+////      Serial.print("  Feed pause percent = ");
+////      Serial.print(feed_pause_percent);
+//  #endif
     
 }
 
@@ -500,7 +465,7 @@ void going_yet() {
    * 3. if no light -> pellet dump and element start then go to 1
    */
   //read light in firebox (done in loop)
-  if (flame_val > START_FLAME) {//FLAME_VAL_THRESHOLD) { //If a bit of light get to heating
+  if (flame_val > START_FLAME) { //If a bit of light get to heating
     if (state_trans_start == 0) { //smooth state transitions
       state_trans_start = millis();
     }
@@ -522,20 +487,7 @@ void going_yet() {
       state_trans_start = 0;
       dump = false;
     } //else keep coming back to check
-  }
-//  else if (flame_val > START_FLAME) { //a little bit of light so lets gently blow and see if flame_val_threshold breached
-//    runFan = true; //run fan at 40%
-//    dump = false;
-//    if (fan_start == 0) {
-//      fan_start = millis();
-//    }
-//    if (millis() - fan_start > START_FAN_TIME) { //start again
-//      runFan = false;
-//      dump = true;
-//      fan_start = 0;
-//    }
-//  }
-  else {
+  }else {
      state_trans_start = 0; //not enough flame for state trans so reset timer
   }
 }
@@ -551,9 +503,9 @@ void cool_to_stop(int target_state) {
   if (water_temp < (temp_set_point + 5)) { //5 seems a reasonable hysteresis value
     fan(true, 100);
   }
-  #ifdef debug
-    Serial.print("  Cooling down as all off  ");
-  #endif 
+//  #ifdef debug
+//    Serial.print("  Cooling down as all off  ");
+//  #endif 
   //if fire continue fanning
   if (flame_val > START_FLAME) {
       fan_start = 0; //still have light so reset final blow
@@ -561,9 +513,9 @@ void cool_to_stop(int target_state) {
   //Keep pumping heat into house until boiler cool
   if (water_temp < (temp_set_point + 2)){
     pump(false);
-    #ifdef debug
-      Serial.print(" Pump off ");
-    #endif
+//    #ifdef debug
+//      Serial.print(" Pump off ");
+//    #endif
     if (fan_start == 0) {
       fan_start = millis();
     }
@@ -580,9 +532,9 @@ void cool_to_stop(int target_state) {
     //start pump to dump heat
     pump(true);
     fan_start = 0;//reset fan timer 
-    #ifdef debug
-      Serial.print("  Pump on  ");
-    #endif  
+//    #ifdef debug
+//      Serial.print("  Pump on  ");
+//    #endif  
   }
 }
 
@@ -621,9 +573,6 @@ void housekeeping() {
   if (dump_count > 0) {
     dump_count = 0;
   }
-//  if (reset) {
-//    reset = false;
-//  }
   if (state_trans_start != 0) {
     state_trans_start = 0;
   }
@@ -675,10 +624,6 @@ void safety() {
       publish(STATE_TOPIC, STATES_STRING[state]);
       reason = "";
     #endif    
-    #ifdef debug
-      Serial.print("Auger temp is: ");
-      Serial.print(auger_temp);
-    #endif
   }
 }
 
@@ -688,16 +633,12 @@ void proc_idle() {
   //1-wire relay gets closed by DZ3
   if (digitalRead(DZ_PIN) == LOW) {
     state = STATE_START_UP;
-    fan_start = 0;
     reason = "";
     #ifdef mqtt
-    dump = false;
       //
       publish(STATE_TOPIC, STATES_STRING[state]);
       publish(ERROR_TOPIC, reason); //clear error register
     #endif
-  }else {
-    //twiddle thumbs
   }
 }
 
@@ -714,11 +655,10 @@ void proc_start_up() {
     #endif
    }
   #ifdef debug
-//    Serial.print("runFan = ");
-//    Serial.print(runFan);
     Serial.print("  Dump =   ");
     Serial.print(dump);
-    Serial.print("  ");
+    Serial.print("  DumpCount =  ");
+    Serial.print(dump_count);
   #endif
   going_yet(); //perform check in each loop
   if (start_count == 0) {
@@ -800,42 +740,24 @@ void proc_start_up() {
 }
 
 void proc_heating() {
-//  if (dump_count > 0) {//reset dump count after it's been in here for a while
-//    if ((long)(millis() -  reset_dump_count) > RESET_THRESHOLD) {
-//      reset_dump_count = 0;
-////      reset = false;
-//      dump_count = 0;
-//    }
-//  }
   //do i want to have an intial hot run ot burn pellet load from start?
   #ifdef pid
     //set fan power and pellets pausse variable via PID lib here
     fanPID.Compute();
     pausePID.Compute();
     feedPID.Compute();
-    #ifdef debug
-      Serial.print("Fan power = ");
-      Serial.print(power);
-      Serial.print("%");
-      Serial.print("  Feed time = ");
-      Serial.print(feed_percent);
-      Serial.print("%");
-      Serial.print("  Pellets pause = ");
-      Serial.print(feed_pause_percent);
-      Serial.print("%  ");
-    #endif
+//    #ifdef debug
+//      Serial.print("Fan power = ");
+//      Serial.print(power);
+//      Serial.print("%");
+//      Serial.print("  Feed time = ");
+//      Serial.print(feed_percent);
+//      Serial.print("%");
+//      Serial.print("  Pellets pause = ");
+//      Serial.print(feed_pause_percent);
+//      Serial.print("%  ");
+//    #endif
   #endif
-//  //test to see if dz aborts
-//  if (digitalRead(DZ_PIN) == HIGH) {
-//    this_state = STATE_IDLE;
-//    state = STATE_COOL_DOWN;
-//    #ifdef mqtt
-//      //
-//      publish(STATE_TOPIC, STATES_STRING[state]);
-//    #endif    
-//  }
-  //dump pellets into flame box with timed auger runs
-  //run the fan. 
   //If not enough flame start again
   if (flame_val < FLAME_VAL_THRESHOLD) {
     if (state_trans_start == 0) { //smooth state transitions
@@ -857,9 +779,6 @@ void proc_heating() {
         state_trans_start = 0;
       }
     }
-//    else {//else keep coming back to check
-//      //state_trans_start = 0; //enough flame for to remain in state so reset timer
-//    }
   }
   fan_and_pellet_management();
   //pump water when it is in the bands
@@ -869,22 +788,13 @@ void proc_heating() {
     #ifdef debug
       Serial.print(" Pump on ");
     #endif    
-    //kill fan if too hot
-//    if (water_temp > HIGH_TEMP) {
-//      this_state = STATE_HEATING;
-//      state = STATE_COOL_DOWN;
-//      #ifdef mqtt
-//        //
-//        publish(STATE_TOPIC, STATES_STRING[state]);
-//      #endif
-//    }
   }
   if (water_temp < LOW_TEMP) {
     pump(false);
   }
 }
 
-void proc_cool_down(int pass_through_state) {
+void proc_cool_down(int pts) {
   /*order goes like this:
    * 1. Too hot? -> pump to get below mid range
    * 2. send to heating if heating sent to cool down
@@ -892,7 +802,7 @@ void proc_cool_down(int pass_through_state) {
    */
   #ifdef debug
     Serial.print(" Passthrough state = ");
-    Serial.print(pass_through_state);
+    Serial.print(pts);
   #endif
   digitalWrite(AUGER, LOW);
   digitalWrite(ELEMENT, LOW);
@@ -902,17 +812,17 @@ void proc_cool_down(int pass_through_state) {
   }
   if (water_temp > (HIGH_TEMP - 1)) {
     //do nothing except pump
-    #ifdef debug
-      Serial.println("  Fan, auger and element off, pump on TOO HOT  ");
-    #endif
+//    #ifdef debug
+//      Serial.println("  Fan, auger and element off, pump on TOO HOT  ");
+//    #endif
   }else if (water_temp > (temp_set_point - 5)) {
-    if (pass_through_state != STATE_HEATING) { // not heating so cool down to stop
-      cool_to_stop(pass_through_state); //this function should trigger state change above temp_set_point - 5
+    if (pts != STATE_HEATING) { // not heating so cool down to stop
+      cool_to_stop(pts); //this function should trigger state change above temp_set_point - 5
     }else if (water_temp < (temp_set_point + 1)) { //go back heating once enough heat has been dumped
       state = STATE_HEATING;
     }
   }else {
-    state = pass_through_state;  
+    state = pts;  
   }
 }
 
@@ -1067,6 +977,14 @@ void loop() {
   #ifdef debug
     Serial.print("State = ");
     Serial.println(STATES_STRING[state]);
+    Serial.print("Sensors: ");
+    Serial.print("W = ");
+    Serial.print(water_temp);
+    Serial.print(" A = ");
+    Serial.print(auger_temp);
+    Serial.print(" F = ");
+    Serial.print(flame_val);
+    
   #endif 
   if (stringComplete){
     inputString = "";
@@ -1079,9 +997,8 @@ void loop() {
       int mosqPayload[] = {water_temp, auger_temp, flame_val, state, fan_power, feed_percent, feed_pause_percent, temp_set_point};
       const String mosqTop[] = {WATER_TEMP_TOPIC, AUGER_TEMP_TOPIC, FLAME_TOPIC, STATE_TOPIC, PID_FAN, PID_FEED, PID_PAUSE, TEMP_SET_POINT_TOP};
       //publish everything in a round robin fashion
-      unsigned long currentMillis = millis();
-      if(currentMillis - previousMillis > PUB_INTERVAL) { //publish info
-        previousMillis = currentMillis;  
+      if(millis() - previousMillis > PUB_INTERVAL) { //publish info
+        previousMillis = millis();  
         if (index < 7 ) {
           index++; 
         }else {
@@ -1094,13 +1011,11 @@ void loop() {
         }
       }
     }else { //publish temp, pause for PUB_INTERVAL_IDLE, publish state, pause for PUB_INTERVAL_IDLE, publish temp etc
-      unsigned long currentMillis = millis();
-      
       if (index > 1) {//set it to value for publishing if was in higher value from prev on state
         index = 0;
       }
-      if((long)(currentMillis - previousMillis) > PUB_INTERVAL_IDLE) { //publish info
-        previousMillis = currentMillis;
+      if((long)(millis() - previousMillis) > PUB_INTERVAL_IDLE) { //publish info
+        previousMillis = millis();
         if (index < 1) { 
           publish(WATER_TEMP_TOPIC, water_temp);//water temp in first member of arrays
           index++;
