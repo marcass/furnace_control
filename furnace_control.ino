@@ -823,7 +823,7 @@ void proc_cool_down(int pts) {
       state = STATE_HEATING;
     }
   }else {
-    state = pts;  
+    cool_to_stop(pts);  
   }
 }
 
