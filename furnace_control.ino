@@ -909,29 +909,29 @@ void loop() {
     }
   }
   //button press?
-  if (digitalRead(BUTTON_1) == HIGH) {
-    if (debounce_start == 0) {
-      debounce_start = millis();
-    }
-    if ((long)(millis() - debounce_start) > BUTTON_ON_THRESHOLD) {
-      if (state != STATE_OFF) {
-        state = STATE_IDLE;
-        #ifdef mqtt
-          //
-          publish(STATE_TOPIC, STATES_STRING[state]);
-        #endif        
-      }else {
-        state = STATE_OFF;
-        #ifdef mqtt
-          //
-          publish(STATE_TOPIC, STATES_STRING[state]);
-        #endif        
-      }
-      debounce_start = 0;
-    }else if (digitalRead(BUTTON_1) == LOW) { //button not held long enough so don't turn switch state and reset counter
-      debounce_start = 0;
-    }
-  }
+//  if (digitalRead(BUTTON_1) == HIGH) {
+//    if (debounce_start == 0) {
+//      debounce_start = millis();
+//    }
+//    if ((long)(millis() - debounce_start) > BUTTON_ON_THRESHOLD) {
+//      if (state != STATE_OFF) {
+//        state = STATE_IDLE;
+//        #ifdef mqtt
+//          //
+//          publish(STATE_TOPIC, STATES_STRING[state]);
+//        #endif        
+//      }else {
+//        state = STATE_OFF;
+//        #ifdef mqtt
+//          //
+//          publish(STATE_TOPIC, STATES_STRING[state]);
+//        #endif        
+//      }
+//      debounce_start = 0;
+//    }else if (digitalRead(BUTTON_1) == LOW) { //button not held long enough so don't turn switch state and reset counter
+//      debounce_start = 0;
+//    }
+//  }
   //serial instruction
   if (stringComplete) {
     if (inputString.startsWith("Turn Off Boiler")) {
