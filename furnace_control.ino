@@ -6,7 +6,7 @@
 /*******************************
  BOILER CONTROL
  *******************************/
-#define debug
+//#define debug
 #define pid //use if PID controlling fan output
 //#define no_PID //use if not pid controlling
 #define mqtt
@@ -807,7 +807,11 @@ void proc_cool_down(int pts) {
   #endif
   digitalWrite(AUGER, LOW);
   digitalWrite(ELEMENT, LOW);
-  pump(true);
+  if (water_temp > MID_TEMP) {
+    pump(true);
+  }else {
+    pump(false);
+  }
   if ((water_temp < 70) and (water_temp > (temp_set_point + 7))) {
     fan(false, 0);
   }
