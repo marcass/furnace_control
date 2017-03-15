@@ -12,7 +12,6 @@
 #define mqtt
 //#define ac_counter
 //#define lcd //interferes with interrupts?
-//#define fan
 
 //Libraries
 //#include <Wire.h>
@@ -542,18 +541,14 @@ void going_yet() {
 }
 
 void cool_to_stop(int target_state) {
-  if (target_state == STATE_ERROR) {
-    #ifdef mqtt
-      //
-      publish(ERROR_TOPIC, reason);
-    #endif  
-  }
+  #ifdef debug
+    Serial.print(" CoolToStop target = ");
+    Serial.print(target_state);
+  #endif
   //make sure stuff stays off
   digitalWrite(AUGER, LOW);
   digitalWrite(ELEMENT, LOW);
-  if (water_temp > (temp_set_point + 7)) { //7 seems a reasonable hysteresis value
-    fan(false, 0);
-  }else {
+  if (water_temp < (temp_set_point + 5)) { //5 seems a reasonable hysteresis value
     fan(true, 100);
   }
   #ifdef debug
@@ -580,7 +575,6 @@ void cool_to_stop(int target_state) {
         publish(STATE_TOPIC, STATES_STRING[state]);
       #endif   
       fan_start = 0;
-      //else keep coming back to check 
     } 
   }else {
     //start pump to dump heat
@@ -896,20 +890,30 @@ void proc_cool_down(int pass_through_state) {
    * 2. send to heating if heating sent to cool down
    * 3. send to error/off/idle if they sent to cool down
    */
+  #ifdef debug
+    Serial.print(" Passthrough state = ");
+    Serial.print(pass_through_state);
+  #endif
   digitalWrite(AUGER, LOW);
   digitalWrite(ELEMENT, LOW);
   pump(true);
+  if ((water_temp < 70) and (water_temp > (temp_set_point + 7))) {
+    fan(false, 0);
+  }
   if (water_temp > (HIGH_TEMP - 1)) {
+    //do nothing except pump
     #ifdef debug
-      Serial.println("Fan, auger and element off, pump on TOO HOT");
-    #endif    
-  }else if (water_temp > (temp_set_point - 2)) {
+      Serial.println("  Fan, auger and element off, pump on TOO HOT  ");
+    #endif
+  }else if (water_temp > (temp_set_point - 5)) {
     if (pass_through_state != STATE_HEATING) { // not heating so cool down to stop
-      cool_to_stop(pass_through_state);
-    }else if (water_temp < temp_set_point) { //go back heating once enough heat has been dumped
+      cool_to_stop(pass_through_state); //this function should trigger state change above temp_set_point - 5
+    }else if (water_temp < (temp_set_point + 1)) { //go back heating once enough heat has been dumped
       state = STATE_HEATING;
     }
-  }  
+  }else {
+    state = pass_through_state;  
+  }
 }
 
 void proc_error() {
@@ -917,17 +921,14 @@ void proc_error() {
     Serial.print("Everything off except pump maybe,  ");
     Serial.print(reason);
   #endif
-  //kill heating thigns
-  fan(false, 0);
-  digitalWrite(AUGER, LOW);
-  digitalWrite(ELEMENT, LOW);
   //test if boiler too hot, if it is pump some water to cool it
   if (water_temp > MID_TEMP) {
-    this_state = state;
+    this_state = STATE_ERROR;
     state = STATE_COOL_DOWN;
   }else {
     housekeeping();//turn everything off and keep checking it is off
   }
+  //error reason gets published in loop()
   //turn off if serial comms received
   if (stringComplete) {
     if (inputString.startsWith("Turn Off Boiler")) {
@@ -1013,7 +1014,8 @@ void loop() {
       inputString = "";
       reason = "";
       stringComplete = false;
-      state = STATE_OFF;
+      this_state = STATE_OFF;
+      state = STATE_COOL_DOWN;
       #ifdef mqtt
         //
         publish(STATE_TOPIC, STATES_STRING[state]);
@@ -1105,6 +1107,9 @@ void loop() {
         }
         if (index == 1) {
           publish(STATE_TOPIC, STATES_STRING[state]);
+          if (state == STATE_ERROR) {
+            publish(ERROR_TOPIC, reason);
+          }
           index = 0;
         }
       }
