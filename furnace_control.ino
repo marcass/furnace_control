@@ -714,6 +714,7 @@ void proc_start_up() {
         digitalWrite(ELEMENT, LOW);
         blow();
         if (!blowing) {
+          element_start = 0;
           start_count++;
           elem = false;
           dump = true;
@@ -880,9 +881,22 @@ void proc_off() {
 }
 
 void loop() {
+  #ifdef debug
+    Serial.print(" Sensors: ");
+    Serial.print("W = ");
+    Serial.print(water_temp);
+    Serial.print(" A = ");
+    Serial.print(auger_temp);
+    Serial.print(" F = ");
+    Serial.print(flame_val);
+    Serial.print("State = ");
+    Serial.println(STATES_STRING[state]);
+  #endif 
   //***************   safety  *********************
   safety();
   //*************  see if we need to turn on or off  **************
+  //get flame_val average
+  flame_value_median();
   //dz calls it: 1-wire relay gets closed by DZ3
   if (digitalRead(DZ_PIN) == HIGH) {
     if ((state == STATE_HEATING) || (state == STATE_START_UP)) {
@@ -974,26 +988,12 @@ void loop() {
       proc_off();
       break;
   }
-  #ifdef debug
-    Serial.print("State = ");
-    Serial.println(STATES_STRING[state]);
-    Serial.print("Sensors: ");
-    Serial.print("W = ");
-    Serial.print(water_temp);
-    Serial.print(" A = ");
-    Serial.print(auger_temp);
-    Serial.print(" F = ");
-    Serial.print(flame_val);
-    
-  #endif 
   if (stringComplete){
     inputString = "";
     stringComplete = false;
   }
   #ifdef mqtt
     if ((state == STATE_START_UP) or (state == STATE_HEATING) or (state == STATE_COOL_DOWN)) { //publish messages
-      //get flame_val average
-      flame_value_median();
       int mosqPayload[] = {water_temp, auger_temp, flame_val, state, fan_power, feed_percent, feed_pause_percent, temp_set_point};
       const String mosqTop[] = {WATER_TEMP_TOPIC, AUGER_TEMP_TOPIC, FLAME_TOPIC, STATE_TOPIC, PID_FAN, PID_FEED, PID_PAUSE, TEMP_SET_POINT_TOP};
       //publish everything in a round robin fashion
