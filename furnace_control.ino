@@ -33,7 +33,7 @@
  * Constants
  */
 //timers
-const long ELEMENT_TIME = 363000; //6.5min in ms
+const long ELEMENT_TIME = 420000; //7min in ms
 const long START_FEED_TIME = 110000; //2min 10s in ms for pellet feed initially (includes little predump)
 const long SUBSEQUENT_START_FEED_TIME = 5000; //little top up of pellets if not starting first time
 const long START_FAN_TIME = 90000; //90s in ms for time to blow to see if flame present
@@ -678,6 +678,7 @@ void proc_start_up() {
         if ((long)(millis() - auger_start) > START_FEED_TIME) {
           //stop feeding pellets
           digitalWrite(AUGER, LOW);
+          auger_start = 0;
           dump = false;
           dump_count++;
           elem = true;
@@ -690,6 +691,7 @@ void proc_start_up() {
         if ((long)(millis() - auger_start) > SUBSEQUENT_START_FEED_TIME) {
         //stop feeding pellets
         digitalWrite(AUGER, LOW);
+        auger_start = 0;
         dump_count++;
         dump = false;
         elem = true;
