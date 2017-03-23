@@ -33,8 +33,8 @@
  * Constants
  */
 //timers
-const long ELEMENT_TIME = 420000; //7min in ms
-const long START_FEED_TIME = 110000; //2min 10s in ms for pellet feed initially (includes little predump)
+const long ELEMENT_TIME = 450000; //7.5min in ms
+const long START_FEED_TIME = 120000; //2min in ms for pellet feed initially
 const long SUBSEQUENT_START_FEED_TIME = 5000; //little top up of pellets if not starting first time
 const long START_FAN_TIME = 90000; //90s in ms for time to blow to see if flame present
 //const long DUMP_START = 45000;//45s of fanning before throwing a little fuel on the fire
@@ -743,6 +743,9 @@ void proc_start_up() {
 }
 
 void proc_heating() {
+//  if (dump_count != 0) {//can reset dump count if heating starts
+//    dump_count = 0;
+//  }
   //do i want to have an intial hot run ot burn pellet load from start?
   #ifdef pid
     //set fan power and pellets pausse variable via PID lib here
