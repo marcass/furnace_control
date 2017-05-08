@@ -36,7 +36,7 @@
 const long ELEMENT_TIME = 450000; //7.5min in ms
 const long START_FEED_TIME = 120000; //2min in ms for pellet feed initially
 const long SUBSEQUENT_START_FEED_TIME = 5000; //little top up of pellets if not starting first time
-const long START_FAN_TIME = 90000; //90s in ms for time to blow to see if flame present
+const long START_FAN_TIME = 120000; //2min in ms for time to blow to see if flame present
 //const long DUMP_START = 45000;//45s of fanning before throwing a little fuel on the fire
 const long END_FAN_TIME = 360000; //6min of blow to empty puck from burn box
 const long PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
@@ -493,6 +493,10 @@ void going_yet() {
 }
 
 void cool_to_stop(int target_state) {
+  /* 1. is it too hot? If so then pump
+   * 2. is it now cool enough to blow fire out? If so fan
+   * 3. is there no flame and it is cool enough? -> target state
+   */
   #ifdef debug
     Serial.print(" CoolToStop target = ");
     Serial.print(target_state);
@@ -500,43 +504,37 @@ void cool_to_stop(int target_state) {
   //make sure stuff stays off
   digitalWrite(AUGER, LOW);
   digitalWrite(ELEMENT, LOW);
-  if (water_temp < (temp_set_point + 5)) { //5 seems a reasonable hysteresis value
-    fan(true, 100);
-  }
-//  #ifdef debug
-//    Serial.print("  Cooling down as all off  ");
-//  #endif 
-  //if fire continue fanning
-  if (flame_val > START_FLAME) {
-      fan_start = 0; //still have light so reset final blow
-    }
-  //Keep pumping heat into house until boiler cool
-  if (water_temp < (temp_set_point + 2)){
-    pump(false);
-//    #ifdef debug
-//      Serial.print(" Pump off ");
-//    #endif
-    if (fan_start == 0) {
-      fan_start = millis();
-    }
-    if ((long)(millis() - fan_start) > END_FAN_TIME) { 
-      fan(false, 0); //puck blown to peices, clean grate for next light
-      state = target_state;
-      #ifdef mqtt
-        //
-        publish(STATE_TOPIC, STATES_STRING[state]);
-      #endif   
-      fan_start = 0;
-    } 
-  }else {
-    //start pump to dump heat
+  if (water_temp > LOW_TEMP) {
     pump(true);
-    fan_start = 0;//reset fan timer 
-//    #ifdef debug
-//      Serial.print("  Pump on  ");
-//    #endif  
+    if (water_temp < (temp_set_point + 5)) { //5 seems a reasonable hysteresis value
+      fan(true, 100); //blow some heat out
+      if (flame_val > START_FLAME) {
+        fan_start = 0; //still have light so reset final blow
+      }
+      if (fan_start == 0) {
+        fan_start = millis();
+      }
+      if ((long)(millis() - fan_start) > END_FAN_TIME) { 
+        fan(false, 0); //puck blown to peices, clean grate for next light
+        state = target_state;
+        #ifdef mqtt
+          publish(STATE_TOPIC, STATES_STRING[state]);
+        #endif   
+        fan_start = 0;
+      }            
+    }else {
+      fan(false, 0);
+    }
+  }else {
+    pump(false);
+    fan(false, 0);
+    state = target_state; //bang through to stopped state immediately if temp less than 50
+    #ifdef mqtt
+      publish(STATE_TOPIC, STATES_STRING[state]);
+    #endif
   }
 }
+
 
 void housekeeping() {
   //if (runFan) {
@@ -969,11 +967,16 @@ void loop() {
     }else if (inputString.startsWith("Increase SetPoint")) {
       inputString = "";
       stringComplete = false;
-      (int)temp_set_point++;
+      if (temp_set_point < 73){
+      (int)temp_set_point++;        
+      }
+
     }else if (inputString.startsWith("Decrease SetPoint")) {
       inputString = "";
       stringComplete = false;
-      (int)temp_set_point--;
+      if (temp_set_point > 60){
+        (int)temp_set_point--;
+      }
     }
   }
   
