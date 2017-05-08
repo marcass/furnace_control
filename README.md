@@ -3,6 +3,11 @@ Control a FUWI pellet boiler with arduino to improve smarts
 
 After having 2 controal boards malfunction I have decided to roll my own with some improved modulation of fan speed and pellet feeding. Reporting or interface issues will be addressed also
 
+## To perform headless-server update of arduino sketch
+1. Stop python listener script on serial port "sudo systemctl stop arduino-attach.service"
+2. Upload script to arduino: "make upload" (in root of git repo for furnace_control)
+3. Start python listener script on serial port: "sudo systemctl start arduino-attach.service"
+
 ## Inputs
 * Water temperature
 * Auger shaft temperature
