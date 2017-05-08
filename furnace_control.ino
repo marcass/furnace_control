@@ -958,6 +958,7 @@ void loop() {
       if (temp_set_point < 73){
       (int)temp_set_point++;        
       }
+      publish(TEMP_SET_POINT_TOP, temp_set_point);
 
     }else if (inputString.startsWith("Decrease SetPoint")) {
       inputString = "";
@@ -965,6 +966,7 @@ void loop() {
       if (temp_set_point > 60){
         (int)temp_set_point--;
       }
+      publish(TEMP_SET_POINT_TOP, temp_set_point);
     }
   }
   
