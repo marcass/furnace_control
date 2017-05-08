@@ -54,7 +54,7 @@ const int LOW_TEMP = 50; //deg C -> low end of heating range
 const int HIGH_TEMP = 75; //deg C -> high end of heating range
 const int MID_TEMP = 63;//Send back to heating if over heats from here
 const int TOO_HOT_TEMP = 85; //cool down NOW
-const int AUGER_OVER_TEMP = 55; //deg C - don't want a hopper fire
+const int AUGER_OVER_TEMP = 35; //deg C - don't want a hopper fire
 //flame values
 const int FLAME_VAL_THRESHOLD = 120;//work out a value here that is reasonable
 const int START_FLAME = 50;
@@ -871,20 +871,8 @@ void proc_error() {
 }
 
 void proc_off() {
-  //reset some shit
-  start_count = 0;
-  start_feed_time = 0;
-  start_feed_pause = 0;
-  start_pump_time = 0;
-  debounce_start = 0;
-  reason = "";
-  //if too hot pump unitl not:
-  if ((water_temp > MID_TEMP) || (flame_val > FLAME_VAL_THRESHOLD)) {
-    this_state = state;
-    state = STATE_COOL_DOWN;   
-  }else {
-    housekeeping();//turn everything off and keep checking it is off
-  }
+  //essentially do nothing
+  housekeeping();//turn everything off and keep checking it is off
 }
 
 void loop() {
@@ -1044,13 +1032,13 @@ void loop() {
     }
 
   #endif
-    #ifdef ac_counter
-      if (crosses > 60) {
-        crosses = 0;
-        counts++;
-        Serial.print("Number of counts = ");
-        Serial.println(counts);
-      }
-    #endif
+  #ifdef ac_counter
+    if (crosses > 60) {
+      crosses = 0;
+      counts++;
+      Serial.print("Number of counts = ");
+      Serial.println(counts);
+    }
+  #endif
   //delay(200); //can't read form serial with delay
 }
