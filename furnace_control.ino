@@ -506,7 +506,7 @@ void cool_to_stop(int target_state) {
   digitalWrite(ELEMENT, LOW);
   if (water_temp > LOW_TEMP) {
     pump(true);
-    if (water_temp < (temp_set_point + 5)) { //5 seems a reasonable hysteresis value
+    if (water_temp < HIGH_TEMP) {
       fan(true, 100); //blow some heat out
       if (flame_val > START_FLAME) {
         fan_start = 0; //still have light so reset final blow
