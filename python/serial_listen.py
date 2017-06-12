@@ -34,7 +34,7 @@ def readlineCR(port):
                 topic = '/'.join(received_splited[:-1])
                 payload = received_splited[-1]
                 print topic, payload
-                publish.single(topic, payload, auth=auth, hostname="houseslave")
+                publish.single(topic, payload, auth=auth, hostname="houseslave", retain=True)
             return rv
 
 
