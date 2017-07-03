@@ -800,39 +800,38 @@ void proc_heating() {
 
 void proc_cool_down(int pts) {
   /*order goes like this:
-   * 1. Too hot? -> pump to get below mid range
+   * 1. send to error/off/idle Tto shutdown if they sent to cool down
    * 2. send to heating if heating sent to cool down
-   * 3. send to error/off/idle if they sent to cool down
+   * 3. Too hot? -> pump to get below mid range
    */
   #ifdef debug
     Serial.print(" Passthrough state = ");
     Serial.print(pts);
   #endif
-  digitalWrite(AUGER, LOW);
-  digitalWrite(ELEMENT, LOW);
-  if (water_temp > MID_TEMP) {
-    pump(true);
-  }else {
-    pump(false);
-  }
-  if ((water_temp < 70) and (water_temp > (temp_set_point + 7))) {
-    fan(false, 0);
-  }
-  if (water_temp > (HIGH_TEMP - 1)) {
-    //do nothing except pump
-//    #ifdef debug
-//      Serial.println("  Fan, auger and element off, pump on TOO HOT  ");
-//    #endif
-  }else if (water_temp > (temp_set_point - 5)) {
-    if (pts != STATE_HEATING) { // not heating so cool down to stop
-      cool_to_stop(pts); //this function should trigger state change above temp_set_point - 5
-    }else if (water_temp < (temp_set_point + 1)) { //go back heating once enough heat has been dumped
-      state = STATE_HEATING;
+  if (pts != STATE_HEATING) { // not heating so cool down to stop
+      cool_to_stop(pts);  
+  }else{ //cool down a bit so can get back to heating
+    #ifdef debug
+      Serial.println("  Fan, auger and element off, pump on TOO HOT  ");
+    #endif
+    digitalWrite(AUGER, LOW);
+    digitalWrite(ELEMENT, LOW);
+    if (water_temp > MID_TEMP) {
+      pump(true);
+    }else {
+      pump(false);
     }
-  }else {
-    cool_to_stop(pts);  
+    if (water_temp < HIGH_TEMP) {
+      fan(false, 0);
+    }
+    if (water_temp < (HIGH_TEMP - 3)) { //go back heating once enough heat has been dumped
+        state = STATE_HEATING;
+    }
   }
 }
+
+
+
 
 void proc_error() {
   #ifdef debug
