@@ -511,17 +511,19 @@ void cool_to_stop(int target_state) {
       if (flame_val > START_FLAME) {
         fan_start = 0; //still have light so reset final blow
       }
-      if (fan_start == 0) {
-        fan_start = millis();
+      if (flame_val < START_FLAME) {
+        if (fan_start == 0) {
+          fan_start = millis();
+        }
+        if ((long)(millis() - fan_start) > END_FAN_TIME) { 
+          fan(false, 0); //puck blown to peices, clean grate for next light
+          state = target_state;
+          #ifdef mqtt
+            publish(STATE_TOPIC, STATES_STRING[state]);
+          #endif   
+          fan_start = 0;
+        }
       }
-      if ((long)(millis() - fan_start) > END_FAN_TIME) { 
-        fan(false, 0); //puck blown to peices, clean grate for next light
-        state = target_state;
-        #ifdef mqtt
-          publish(STATE_TOPIC, STATES_STRING[state]);
-        #endif   
-        fan_start = 0;
-      }            
     }else {
       fan(false, 0);
     }
