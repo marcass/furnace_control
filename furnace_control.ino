@@ -371,7 +371,7 @@ void pump(bool on) { //prevents short cycling of pump
     }
   }
   if (!on) {
-    if ((long)(millis() - start_pump_time) > PUMP_TIME) {
+    if ( (millis() - start_pump_time) > PUMP_TIME) {
       digitalWrite(PUMP, LOW);
       start_pump_time = 0;
     }
@@ -420,7 +420,7 @@ void fan_and_pellet_management() {
       start_feed_time = millis();
     }
     //test to see if feed been on for long enough
-    if ((long)(millis() - start_feed_time) > feed_time) {
+    if ( (millis() - start_feed_time) > feed_time) {
       //stop feeding and start pausing
       feeding = false;
       start_feed_time = 0;
@@ -440,7 +440,7 @@ void fan_and_pellet_management() {
     if (start_feed_pause == 0 ) {
       start_feed_pause = millis();
     }
-    if ((long)(millis() - start_feed_pause) > feed_pause) {
+    if ( (millis() - start_feed_pause) > feed_pause) {
       //stop pausing, start feeding
       
       start_feed_pause = 0;
@@ -469,7 +469,7 @@ void going_yet() {
     if (state_trans_start == 0) { //smooth state transitions
       state_trans_start = millis();
     }
-    if ((long)(millis() - state_trans_start) > STATE_CHANGE_THRES_UP) {
+    if ( (millis() - state_trans_start) > STATE_CHANGE_THRES_UP) {
       digitalWrite(AUGER, LOW);
       digitalWrite(ELEMENT, LOW);
       blowing = false;
@@ -515,7 +515,7 @@ void cool_to_stop(int target_state) {
         if (fan_start == 0) {
           fan_start = millis();
         }
-        if ((long)(millis() - fan_start) > END_FAN_TIME) { 
+        if ((millis() - fan_start) > END_FAN_TIME) { 
           fan(false, 0); //puck blown to peices, clean grate for next light
           state = target_state;
           #ifdef mqtt
@@ -594,7 +594,7 @@ void blow() {
     fan_start = millis();
     blowing = true;
   }
-  if ((long)(millis() - fan_start) > START_FAN_TIME) {
+  if ( (millis() - fan_start) > START_FAN_TIME) {
     fan(false, 0);
     fan_start = 0;
     blowing = false;
@@ -675,7 +675,7 @@ void proc_start_up() {
         auger_start = millis();
       }
       if (dump_count == 0) {
-        if ((long)(millis() - auger_start) > START_FEED_TIME) {
+        if ( (millis() - auger_start) > START_FEED_TIME) {
           //stop feeding pellets
           digitalWrite(AUGER, LOW);
           auger_start = 0;
@@ -688,7 +688,7 @@ void proc_start_up() {
         }
       }
       if (dump_count > 0) { //don't want to overload pellet chamber
-        if ((long)(millis() - auger_start) > SUBSEQUENT_START_FEED_TIME) {
+        if ( (millis() - auger_start) > SUBSEQUENT_START_FEED_TIME) {
         //stop feeding pellets
         digitalWrite(AUGER, LOW);
         auger_start = 0;
@@ -712,7 +712,7 @@ void proc_start_up() {
         element_start = millis();
       }
       //test to see if element been on for too enough and stop it if it has
-      if ((long)(millis() - element_start) > ELEMENT_TIME) {
+      if ( (millis() - element_start) > ELEMENT_TIME) {
         digitalWrite(ELEMENT, LOW);
         blow();
         if (!blowing) {
@@ -769,7 +769,7 @@ void proc_heating() {
     if (state_trans_start == 0) { //smooth state transitions
       state_trans_start = millis();
     }
-    if ((long)(millis() - state_trans_start) > STATE_CHANGE_THRES) {
+    if ( (millis() - state_trans_start) > STATE_CHANGE_THRES) {
       state = STATE_START_UP;
       dump = false;
       #ifdef mqtt
@@ -781,7 +781,7 @@ void proc_heating() {
       if (state_trans_stop == 0) {
         state_trans_stop = millis();
       }
-      if ((long)(millis() - state_trans_stop) > STATE_CHANGE_THRES) {
+      if ((millis() - state_trans_stop) > STATE_CHANGE_THRES) {
         state_trans_start = 0;
       }
     }
@@ -896,6 +896,7 @@ void loop() {
   //dz calls it: 1-wire relay gets closed by DZ3
   if (digitalRead(DZ_PIN) == HIGH) {
     if ((state == STATE_HEATING) || (state == STATE_START_UP)) {
+      fan_start = 0;//not going for end fan time so trying to reset variable here
       this_state = STATE_IDLE;
       state = STATE_COOL_DOWN;
       #ifdef mqtt
@@ -909,7 +910,7 @@ void loop() {
 //    if (debounce_start == 0) {
 //      debounce_start = millis();
 //    }
-//    if ((long)(millis() - debounce_start) > BUTTON_ON_THRESHOLD) {
+//    if ( (millis() - debounce_start) > BUTTON_ON_THRESHOLD) {
 //      if (state != STATE_OFF) {
 //        state = STATE_IDLE;
 //        #ifdef mqtt
@@ -1017,7 +1018,7 @@ void loop() {
       if (index > 1) {//set it to value for publishing if was in higher value from prev on state
         index = 0;
       }
-      if((long)(millis() - previousMillis) > PUB_INTERVAL_IDLE) { //publish info
+      if( (millis() - previousMillis) > PUB_INTERVAL_IDLE) { //publish info
         previousMillis = millis();
         if (index < 1) { 
           publish(WATER_TEMP_TOPIC, water_temp);//water temp in first member of arrays
