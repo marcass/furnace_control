@@ -92,6 +92,7 @@ const int DZ_SUPPLY = 6; //Need a pin to supply 5v that is passed to DZ_PIN when
 unsigned long debounce_start = 0; //button press debounce
 unsigned long element_start = 0;
 unsigned long fan_start = 0;
+unsigned long fanend_start = 0;
 unsigned long auger_start = 0;
 unsigned long reset_dump_count;
 unsigned long state_trans_start = 0;
@@ -509,19 +510,20 @@ void cool_to_stop(int target_state) {
     if (water_temp < HIGH_TEMP) {
       fan(true, 100); //blow some heat out
       if (flame_val > START_FLAME) {
-        fan_start = 0; //still have light so reset final blow
+        fanend_start = 0; //still have light so reset final blow
       }
       if (flame_val < START_FLAME) {
-        if (fan_start == 0) {
-          fan_start = millis();
+        if (fanend_start == 0) {
+          fanend_start = millis();
         }
-        if ((millis() - fan_start) > END_FAN_TIME) { 
+        if ((millis() - fanend_start) > END_FAN_TIME) { 
           fan(false, 0); //puck blown to peices, clean grate for next light
+          this_state = -1;//put nonsense varialbe in here to it is changed by code
           state = target_state;
           #ifdef mqtt
             publish(STATE_TOPIC, STATES_STRING[state]);
           #endif   
-          fan_start = 0;
+          fanend_start = 0;
         }
       }
     }else {
@@ -531,6 +533,7 @@ void cool_to_stop(int target_state) {
     pump(false);
     fan(false, 0);
     state = target_state; //bang through to stopped state immediately if temp less than 50
+    fanend_start = 0;
     #ifdef mqtt
       publish(STATE_TOPIC, STATES_STRING[state]);
     #endif
@@ -841,7 +844,7 @@ void proc_error() {
     Serial.print(reason);
   #endif
   //test if boiler too hot, if it is pump some water to cool it
-  if (water_temp > MID_TEMP) {
+  if (water_temp > HIGH_TEMP) {
     this_state = STATE_ERROR;
     state = STATE_COOL_DOWN;
   }else {
@@ -896,7 +899,7 @@ void loop() {
   //dz calls it: 1-wire relay gets closed by DZ3
   if (digitalRead(DZ_PIN) == HIGH) {
     if ((state == STATE_HEATING) || (state == STATE_START_UP)) {
-      fan_start = 0;//not going for end fan time so trying to reset variable here
+      fanend_start = 0;//not going for end fan time so trying to reset variable here
       this_state = STATE_IDLE;
       state = STATE_COOL_DOWN;
       #ifdef mqtt
