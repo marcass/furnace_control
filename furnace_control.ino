@@ -33,22 +33,22 @@
  * Constants
  */
 //timers
-const long ELEMENT_TIME = 450000; //7.5min in ms
-const long START_FEED_TIME = 120000; //2min in ms for pellet feed initially
-const long SUBSEQUENT_START_FEED_TIME = 5000; //little top up of pellets if not starting first time
-const long START_FAN_TIME = 120000; //2min in ms for time to blow to see if flame present
+unsigned long ELEMENT_TIME = 450000; //7.5min in ms
+unsigned long START_FEED_TIME = 120000; //2min in ms for pellet feed initially
+unsigned long SUBSEQUENT_START_FEED_TIME = 5000; //little top up of pellets if not starting first time
+unsigned long START_FAN_TIME = 120000; //2min in ms for time to blow to see if flame present
 //const long DUMP_START = 45000;//45s of fanning before throwing a little fuel on the fire
-const long END_FAN_TIME = 600000; //10min of blow to empty puck from burn box
-const long PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
-const int BUTTON_ON_THRESHOLD = 1500;//1.5s in ms for turning from off to idle and vice versa
-const long FEED_PAUSE = 24000; //60s and calculating a result so might need to be a float
-const long FEED_TIME = 10000;//default pellet feed time
-const long STATE_CHANGE_THRES = 5000;//time that needs to elapse before changing STATE_START_UP <- STATE_HEATING
-const long STATE_CHANGE_THRES_UP = 2000;//time that needs to elapse before changing STATE_START_UP -> STATE_HEATING
-const long STOP_THRESH = 5000; //for  fan short cycling
-const long ERROR_THRES = 5000;//time that must elapse before goes into error at startup (not working at present)
-const long RESET_THRESHOLD = 300000; //time that must elapse before start count gets reset
-const int FLAME_READ_INTERVAL = 30; //read flame val every 30ms to build array for calculating average value (smoothing)
+unsigned long END_FAN_TIME = 600000; //10min of blow to empty puck from burn box
+unsigned long PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
+unsigned int BUTTON_ON_THRESHOLD = 1500;//1.5s in ms for turning from off to idle and vice versa
+unsigned long FEED_PAUSE = 24000; //60s and calculating a result so might need to be a float
+unsigned long FEED_TIME = 10000;//default pellet feed time
+unsigned long STATE_CHANGE_THRES = 5000;//time that needs to elapse before changing STATE_START_UP <- STATE_HEATING
+unsigned long STATE_CHANGE_THRES_UP = 2000;//time that needs to elapse before changing STATE_START_UP -> STATE_HEATING
+unsigned long STOP_THRESH = 5000; //for  fan short cycling
+unsigned long ERROR_THRES = 5000;//time that must elapse before goes into error at startup (not working at present)
+unsigned long RESET_THRESHOLD = 300000; //time that must elapse before start count gets reset
+unsigned int FLAME_READ_INTERVAL = 30; //read flame val every 30ms to build array for calculating average value (smoothing)
 //temps
 const int LOW_TEMP = 50; //deg C -> low end of heating range
 const int HIGH_TEMP = 75; //deg C -> high end of heating range
@@ -507,36 +507,35 @@ void cool_to_stop(int target_state) {
   digitalWrite(ELEMENT, LOW);
   if (water_temp > LOW_TEMP) {
     pump(true);
-    if (water_temp < HIGH_TEMP) {
-      fan(true, 100); //blow some heat out
-      if (flame_val > START_FLAME) {
-        fanend_start = 0; //still have light so reset final blow
-      }
-      if (flame_val < START_FLAME) {
-        if (fanend_start == 0) {
-          fanend_start = millis();
-        }
-        if ((millis() - fanend_start) > END_FAN_TIME) { 
-          fan(false, 0); //puck blown to peices, clean grate for next light
-          this_state = -1;//put nonsense varialbe in here to it is changed by code
-          state = target_state;
-          #ifdef mqtt
-            publish(STATE_TOPIC, STATES_STRING[state]);
-          #endif   
-          fanend_start = 0;
-        }
-      }
-    }else {
-      fan(false, 0);
-    }
   }else {
     pump(false);
+//    fan(false, 0);
+//    state = target_state; //bang through to stopped state immediately if temp less than 50
+//    fanend_start = 0;
+//    #ifdef mqtt
+//      publish(STATE_TOPIC, STATES_STRING[state]);
+//    #endif
+  }
+  if (water_temp < HIGH_TEMP) {
+    fan(true, 100); //blow some heat out
+    if (flame_val < 10) { //low flame value
+      if (fanend_start == 0) {
+        fanend_start = millis();
+      }
+      if ((millis() - fanend_start) > END_FAN_TIME) { 
+        fan(false, 0); //puck blown to peices, clean grate for next light
+        //this_state = -1;//put nonsense varialbe in here to it is changed by code
+        state = target_state;
+        #ifdef mqtt
+          publish(STATE_TOPIC, STATES_STRING[state]);
+        #endif   
+        fanend_start = 0;
+      }
+    }else{
+      fanend_start = 0; //still have light so reset final blow
+    }
+  }else {
     fan(false, 0);
-    state = target_state; //bang through to stopped state immediately if temp less than 50
-    fanend_start = 0;
-    #ifdef mqtt
-      publish(STATE_TOPIC, STATES_STRING[state]);
-    #endif
   }
 }
 
