@@ -518,7 +518,7 @@ void cool_to_stop(int target_state) {
   }
   if (water_temp < HIGH_TEMP) {
     fan(true, 100); //blow some heat out
-    if (flame_val < 10) { //low flame value
+    if (flame_val < START_FLAME) { //low flame value
       if (fanend_start == 0) {
         fanend_start = millis();
       }
