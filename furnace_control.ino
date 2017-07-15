@@ -624,7 +624,7 @@ void safety() {
       //
       publish(ERROR_TOPIC, reason);
       publish(STATE_TOPIC, STATES_STRING[state]);
-      reason = "";
+      //reason = "";
     #endif    
   }
 }
@@ -635,12 +635,12 @@ void proc_idle() {
   //1-wire relay gets closed by DZ3
   if (digitalRead(DZ_PIN) == LOW) {
     state = STATE_START_UP;
-    reason = "";
-    #ifdef mqtt
-      //
-      publish(STATE_TOPIC, STATES_STRING[state]);
-      publish(ERROR_TOPIC, reason); //clear error register
-    #endif
+//    reason = "";
+//    #ifdef mqtt
+//      //
+//      publish(STATE_TOPIC, STATES_STRING[state]);
+//      publish(ERROR_TOPIC, reason); //clear error register
+//    #endif
   }
 }
 
@@ -652,7 +652,7 @@ void proc_start_up() {
     #ifdef mqtt
       //
       publish(ERROR_TOPIC, reason);
-      reason = "";
+      //reason = "";
       dump = false;
     #endif
    }
@@ -862,11 +862,11 @@ void proc_error() {
       #endif      
       //delay(10);
     }else {
-      reason = inputString;
-      #ifdef mqtt
-        publish(ERROR_TOPIC, reason); //dump message so we can see how it was malformed
-      #endif
-      reason = "";
+//      reason = inputString;
+//      #ifdef mqtt
+//        publish(ERROR_TOPIC, reason); //dump message so we can see how it was malformed
+//      #endif
+      //reason = "";
       inputString = "";
       stringComplete = false;  
     }
@@ -935,7 +935,7 @@ void loop() {
   if (stringComplete) {
     if (inputString.startsWith("Turn Off Boiler")) {
       inputString = "";
-      reason = "";
+      //reason = "";
       stringComplete = false;
       this_state = STATE_OFF;
       state = STATE_COOL_DOWN;
@@ -949,28 +949,30 @@ void loop() {
       inputString = "";
       stringComplete = false;
       state = STATE_IDLE;
-      reason = "";
-      #ifdef mqtt
-        //
-        publish(ERROR_TOPIC, reason); //clear error register
-      #endif    
+//      reason = "";
+//      #ifdef mqtt
+//        //
+//        publish(ERROR_TOPIC, reason); //clear error register
+//      #endif    
       start_count = 0;  
       //delay(10);
     }else if (inputString.startsWith("Increase SetPoint")) {
       inputString = "";
       stringComplete = false;
       if (temp_set_point < 73){
-      (int)temp_set_point++;        
+      (int)temp_set_point++; 
+      publish(TEMP_SET_POINT_TOP, temp_set_point);     
       }
-      publish(TEMP_SET_POINT_TOP, temp_set_point);
+      
 
     }else if (inputString.startsWith("Decrease SetPoint")) {
       inputString = "";
       stringComplete = false;
       if (temp_set_point > 60){
         (int)temp_set_point--;
+        publish(TEMP_SET_POINT_TOP, temp_set_point);
       }
-      publish(TEMP_SET_POINT_TOP, temp_set_point);
+      
     }
   }
   
@@ -999,7 +1001,7 @@ void loop() {
     stringComplete = false;
   }
   #ifdef mqtt
-    if ((state == STATE_START_UP) or (state == STATE_HEATING) or (state == STATE_COOL_DOWN)) { //publish messages
+    if ((state == STATE_START_UP) or (state == STATE_HEATING) or (state == STATE_COOL_DOWN)) { //publishs
       int mosqPayload[] = {water_temp, auger_temp, flame_val, state, fan_power, feed_percent, feed_pause_percent, temp_set_point};
       const String mosqTop[] = {WATER_TEMP_TOPIC, AUGER_TEMP_TOPIC, FLAME_TOPIC, STATE_TOPIC, PID_FAN, PID_FEED, PID_PAUSE, TEMP_SET_POINT_TOP};
       //publish everything in a round robin fashion
@@ -1028,9 +1030,9 @@ void loop() {
         }
         if (index == 1) {
           publish(STATE_TOPIC, STATES_STRING[state]);
-          if (state == STATE_ERROR) {
-            publish(ERROR_TOPIC, reason);
-          }
+//          if (state == STATE_ERROR) {
+//            publish(ERROR_TOPIC, reason);
+//          }
           index = 0;
         }
       }
