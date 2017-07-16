@@ -54,7 +54,7 @@ const int LOW_TEMP = 50; //deg C -> low end of heating range
 const int HIGH_TEMP = 75; //deg C -> high end of heating range
 const int MID_TEMP = 63;//Send back to heating if over heats from here
 const int TOO_HOT_TEMP = 85; //cool down NOW
-const int AUGER_OVER_TEMP = 35; //deg C - don't want a hopper fire
+const int AUGER_OVER_TEMP = 45; //deg C - don't want a hopper fire
 //flame values
 const int FLAME_VAL_THRESHOLD = 120;//work out a value here that is reasonable
 const int START_FLAME = 50;
