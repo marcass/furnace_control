@@ -619,10 +619,11 @@ void safety() {
   auger_temp = int(Thermistor(analogRead(AUGER_TEMP)));
   if (auger_temp > AUGER_OVER_TEMP) {
     state = STATE_ERROR;
-    reason = "Auger too hot";
+    reason = "Auger ";
+    String message = reason + auger_temp;
     #ifdef mqtt
       //
-      publish(ERROR_TOPIC, reason);
+      publish(ERROR_TOPIC, message);
       publish(STATE_TOPIC, STATES_STRING[state]);
       //reason = "";
     #endif    
