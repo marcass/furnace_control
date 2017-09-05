@@ -938,13 +938,17 @@ void loop() {
       inputString = "";
       //reason = "";
       stringComplete = false;
-      this_state = STATE_OFF;
-      state = STATE_COOL_DOWN;
-      #ifdef mqtt
-        //
-        publish(STATE_TOPIC, STATES_STRING[state]);
-      #endif        
-      //delay(10);
+      if ((state == STATE_IDLE) or (state == STATE_OFF) or (state == STATE_ERROR)){
+        state = STATE_OFF
+      }else{
+        this_state = STATE_OFF;
+        state = STATE_COOL_DOWN;
+        #ifdef mqtt
+          //
+          publish(STATE_TOPIC, STATES_STRING[state]);
+        #endif        
+        //delay(10);
+      }
     }
     if (inputString.startsWith("Turn On Boiler")) {
       inputString = "";
