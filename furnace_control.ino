@@ -939,7 +939,7 @@ void loop() {
       //reason = "";
       stringComplete = false;
       if ((state == STATE_IDLE) or (state == STATE_OFF) or (state == STATE_ERROR)){
-        state = STATE_OFF
+        state = STATE_OFF;
       }else{
         this_state = STATE_OFF;
         state = STATE_COOL_DOWN;
