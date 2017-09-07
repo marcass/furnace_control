@@ -943,17 +943,18 @@ void loop() {
       }else{
         this_state = STATE_OFF;
         state = STATE_COOL_DOWN;
-        #ifdef mqtt
-          //
-          publish(STATE_TOPIC, STATES_STRING[state]);
-        #endif        
-        //delay(10);
       }
+      #ifdef mqtt
+        publish(STATE_TOPIC, STATES_STRING[state]);
+      #endif
     }
     if (inputString.startsWith("Turn On Boiler")) {
       inputString = "";
       stringComplete = false;
       state = STATE_IDLE;
+      #ifdef mqtt
+        publish(STATE_TOPIC, STATES_STRING[state]);
+      #endif
 //      reason = "";
 //      #ifdef mqtt
 //        //
