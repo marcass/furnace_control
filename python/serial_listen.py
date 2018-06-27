@@ -1,5 +1,6 @@
 import serial
 import time
+import alerts
 #import paho.mqtt.client as mqtt
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
@@ -35,6 +36,8 @@ def readlineCR(port):
                 payload = received_splited[-1]
                 print topic, payload
                 publish.single(topic, payload, auth=auth, hostname="houseslave", retain=True)
+                if (topic == 'boiler/messages'):
+                    alerts.send_alert(payload)
             return rv
 
 
@@ -45,7 +48,7 @@ port = serial.Serial("/dev/arduino", baudrate=9600, timeout=3.0)
 if __name__ == "__main__":
     client = mqtt.Client()
     client.username_pw_set(username='esp', password='heating')
-    
+
     #mqtt.userdata_set(username='esp',password='heating')
     client.on_connect = on_connect
     client.on_message = on_message
