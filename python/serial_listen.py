@@ -5,6 +5,11 @@ import alerts
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
 
+# dict of topics for messaging
+boiler_topics = {"boiler/state":"State: ", "boiler/temp/water":"Water temp", "boiler/temp/auger": "Auger temp", "boiler/temp/setpoint": "Setpoint"}
+boiler_data = {'State': '', 'Water temp': 0, 'Auger temp': 0, 'Setpoint': 0}
+
+
 # The callback for when the client receives a CONNACK response from the server.
 def on_connect(client, userdata, flags, rc):
     print("Connected with result code "+str(rc))
@@ -23,6 +28,7 @@ def on_message(client, userdata, msg):
 
 
 def readlineCR(port):
+    global boiler_data
     rv = ""
     while True:
         ch = port.read()
@@ -38,6 +44,12 @@ def readlineCR(port):
                 publish.single(topic, payload, auth=auth, hostname="houseslave", retain=True)
                 if (topic == 'boiler/messages'):
                     alerts.send_alert(payload)
+                try:
+                    if topic in boiler_topics:
+                        boiler_data[boiler_topics[topic]] = payload
+                except:
+                    # we don't care about this topic
+                    pass
             return rv
 
 

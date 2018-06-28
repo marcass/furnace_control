@@ -23,12 +23,8 @@ def on_chat_message(msg):
     try:
         text = msg['text']
         help_text = "This bot will alert you to boiler malfunctions. Any message you send will be replied to by the bot. If it is not formatted correctly you will get this message again. Sending the following will give you a result:\n'/status' to get the status of the boiler."
-        elif ('/status' in text) or ('/Status' in text):
-            if any(k in text for k in tank_names):
-                in_tank = text.split(' ')[-1]
-                status_mess(in_tank, chat_id)
-            else:
-                status_mess('all', chat_id)
+        if ('/status' in text) or ('/Status' in text):
+            send_alert("State: "+)
         elif ('/Plot' in text) or ('/plot' in text):# or ('/batt' in text):
             #reset variables
             dur = None
