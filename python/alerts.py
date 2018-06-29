@@ -21,14 +21,13 @@ telepot.api._which_pool = always_use_new
 def send_alert(text):
     bot.sendMessage(botID, text)
 
-def on_chat_message(msg):
+def on_chat_message(msg, payload):
     content_type, chat_type, chat_id = telepot.glance(msg)
     try:
         text = msg['text']
         help_text = "This bot will alert you to boiler malfunctions. Any message you send will be replied to by the bot. If it is not formatted correctly you will get this message again. Sending the following will give you a result:\n'/status' to get the status of the boiler."
         if ('/status' in text) or ('/Status' in text):
-            from serial_listen import boiler_data as payload
-            message = "State: "+payload['State']+"\rWater temp: "+str(payload['Water temp'])+"\rAuger temp: "+str(payload['Auger temp'])+"\rSetpoint: "+str(payload['Setpoint'])
+            message = "State: "+payload['State']+"\r\nWater temp: "+str(payload['Water temp'])+"\r\nAuger temp: "+str(payload['Auger temp'])+"\r\nSetpoint: "+str(payload['Setpoint'])
             print message
             send_alert(message)
         else:

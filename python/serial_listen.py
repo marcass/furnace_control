@@ -51,6 +51,10 @@ def readlineCR(port):
                     pass
             return rv
 
+# Alerts setup:
+def chat_messg():
+    alerts.on_chat_message(msg, boiler_data)
+
 
 auth = creds.mosq_auth
 port = serial.Serial("/dev/arduino", baudrate=9600, timeout=3.0)
@@ -65,7 +69,7 @@ if __name__ == "__main__":
     client.on_message = on_message
     client.connect(creds.broker, 1883, 60)
     # Start message bot
-    alerts.MessageLoop(alerts.bot, {'chat': alerts.on_chat_message, 'callback_query': alerts.on_callback_query}).run_as_thread()
+    alerts.MessageLoop(alerts.bot, {'chat': chat_messg, 'callback_query': alerts.on_callback_query}).run_as_thread()
     client.loop_start()
     while True:
         #for debugging enable printing of serial port data
