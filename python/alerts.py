@@ -8,6 +8,9 @@ from telepot.delegate import (
 import telepot.api
 import creds
 
+TOKEN = creds.botAPIKey
+botID = creds.bot_ID
+
 # ########### Alert stuff ########################
 # #fix for protocol error message ( see https://github.com/nickoala/telepot/issues/242 )
 def always_use_new(req, **user_kw):
@@ -16,7 +19,7 @@ def always_use_new(req, **user_kw):
 telepot.api._which_pool = always_use_new
 
 def send_alert(text):
-    bot.sendMessage(creds.botID, text)
+    bot.sendMessage(botID, text)
 
 def on_chat_message(msg):
     content_type, chat_type, chat_id = telepot.glance(msg)
@@ -25,7 +28,7 @@ def on_chat_message(msg):
         help_text = "This bot will alert you to boiler malfunctions. Any message you send will be replied to by the bot. If it is not formatted correctly you will get this message again. Sending the following will give you a result:\n'/status' to get the status of the boiler."
         if ('/status' in text) or ('/Status' in text):
             from serial_listen import boiler_data as payload
-            message = "State: "+payload['State']+"\rWater temp: "+payload['Water temp']+"\rAuger temp: "+payload['Auger temp'+"\rSetpoint: "+payload['Setpoint']
+            message = "State: "+payload['State']+"\rWater temp: "+str(payload['Water temp'])+"\rAuger temp: "+str(payload['Auger temp'])+"\rSetpoint: "+str(payload['Setpoint'])
             print message
             send_alert(message)
         else:
@@ -44,8 +47,6 @@ def on_callback_query(msg):
         print 'turn on'
 
 #TOKEN = creds.testbotAPIKey
-TOKEN = creds.botAPIKey
-botID = creds.bot_ID
 bot = telepot.Bot(TOKEN)
 
 # #start the message bot
