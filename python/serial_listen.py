@@ -7,7 +7,7 @@ import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
 
 # dict of topics for messaging
-boiler_topics = {"boiler/state":"State: ", "boiler/temp/water":"Water temp", "boiler/temp/auger": "Auger temp", "boiler/temp/setpoint": "Setpoint"}
+boiler_topics = {"boiler/state":"State", "boiler/temp/water":"Water temp", "boiler/temp/auger": "Auger temp", "boiler/temp/setpoint": "Setpoint"}
 boiler_data = {'State': '', 'Water temp': 0, 'Auger temp': 0, 'Setpoint': 0}
 
 
@@ -48,12 +48,24 @@ def readlineCR(port):
                         boiler_data[boiler_topics[topic]] = payload
                 except:
                     # we don't care about this topic
+                    # print 'oops'
                     pass
             return rv
 
 # Alerts setup:
-def chat_messg():
-    alerts.on_chat_message(msg, boiler_data)
+def chat_messg(msg):
+    if '/turn off' in msg['text']:
+        print 'turning off'
+        port.write('\r\n'+'Turn Off Boiler'+'\r')
+        return
+    if '/turn on' in msg['text']:
+        print 'turning on'
+        port.write('\r\n'+'Turn On Boiler'+'\r')
+        return
+    else:
+        print 'doing other stuff'
+        alerts.on_chat_message(msg, boiler_data)
+        return
 
 
 auth = creds.mosq_auth
