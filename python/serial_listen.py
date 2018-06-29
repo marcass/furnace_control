@@ -1,6 +1,7 @@
 import serial
 import time
 import alerts
+import creds
 #import paho.mqtt.client as mqtt
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
@@ -25,8 +26,6 @@ def on_message(client, userdata, msg):
 	port.write('\r\n'+str(msg.payload)+'\r')
         print 'Sent ' + msg.payload + ' to serial port.'
 
-
-
 def readlineCR(port):
     global boiler_data
     rv = ""
@@ -41,7 +40,7 @@ def readlineCR(port):
                 topic = '/'.join(received_splited[:-1])
                 payload = received_splited[-1]
                 print topic, payload
-                publish.single(topic, payload, auth=auth, hostname="houseslave", retain=True)
+                publish.single(topic, payload, auth=auth, hostname=creds.broker, retain=True)
                 if (topic == 'boiler/messages'):
                     alerts.send_alert(payload)
                 try:
@@ -53,7 +52,7 @@ def readlineCR(port):
             return rv
 
 
-auth = {'username':"esp", 'password':"heating"}
+auth = creds.mosq_auth
 port = serial.Serial("/dev/arduino", baudrate=9600, timeout=3.0)
 #port = serial.Serial("/dev/ttyUSB0", baudrate=9600, timeout=3.0)
 
@@ -64,13 +63,9 @@ if __name__ == "__main__":
     #mqtt.userdata_set(username='esp',password='heating')
     client.on_connect = on_connect
     client.on_message = on_message
-    client.connect("houseslave", 1883, 60)
-
-    # Blocking call that processes network traffic, dispatches callbacks and
-    # handles reconnecting.
-    # Other loop*() functions are available that give a threaded interface and a
-    # manual interface.
-    # client.loop_forever()
+    client.connect(creds.broker, 1883, 60)
+    # Start message bot
+    alerts.MessageLoop(alerts.bot, {'chat': alerts.on_chat_message, 'callback_query': alerts.on_callback_query}).run_as_thread()
     client.loop_start()
     while True:
         #for debugging enable printing of serial port data
