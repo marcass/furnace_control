@@ -24,8 +24,10 @@ def on_chat_message(msg):
         text = msg['text']
         help_text = "This bot will alert you to boiler malfunctions. Any message you send will be replied to by the bot. If it is not formatted correctly you will get this message again. Sending the following will give you a result:\n'/status' to get the status of the boiler."
         if ('/status' in text) or ('/Status' in text):
-            from serial_listen import boilder_data as payload
-            send_alert("State: "+payload['State']+"\rWater temp: "+payload['Water temp']+"\rAuger temp: "+payload['Auger temp'+"\rSetpoint: "+payload['Setpoint'])
+            from serial_listen import boiler_data as payload
+            message = "State: "+payload['State']+"\rWater temp: "+payload['Water temp']+"\rAuger temp: "+payload['Auger temp'+"\rSetpoint: "+payload['Setpoint']
+            print message
+            send_alert(message)
         else:
             message = bot.sendMessage(chat_id, "I'm sorry, I don't recongnise that request (=bugger off, that does nothing). " +help_text)
     except KeyError:
