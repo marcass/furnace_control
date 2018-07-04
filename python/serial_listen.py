@@ -42,7 +42,8 @@ def readlineCR(port):
                 print topic, payload
                 publish.single(topic, payload, auth=auth, hostname=creds.broker, retain=True)
                 if (topic == 'boiler/messages'):
-                    alerts.send_alert(payload)
+                    # print 'Got an error message'
+                    alerts.send_alert('Gobgoyle says: '+payload)
                 try:
                     if topic in boiler_topics:
                         boiler_data[boiler_topics[topic]] = payload
