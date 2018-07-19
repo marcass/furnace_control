@@ -21,10 +21,22 @@ def on_connect(client, userdata, flags, rc):
 # The callback for when a PUBLISH message is received from the server.
 def on_message(client, userdata, msg):
     print(msg.topic+' '+str(msg.payload))
+    if ('Setpoint' in str(msg.payload)) or ('State'  in str(msg.payload)):
+    	port.write('\r\n'+str(msg.payload)+'\r')
+        print 'Sent ' + msg.payload + ' to serial port.'
     allowed_passthrough_msg = ['Turn Off Boiler', 'Turn On Boiler', 'Increase SetPoint', 'Decrease SetPoint']
     if str(msg.payload) in allowed_passthrough_msg:
     	port.write('\r\n'+str(msg.payload)+'\r')
         print 'Sent ' + msg.payload + ' to serial port.'
+
+def write_setpoint(setpoint):
+	port.write('\r\n'+'Setpoint'+'['+setpoint+']'+'\r')
+    print 'Sent Setpoint[' + setpoint + '] to serial port.'
+
+def write_state(state):
+    # "Idle","Starting","Heating","Cool down","Error","Off"
+	port.write('\r\n'+'State'+'['+state+']'+'\r')
+    print 'Sent State[' + state + '] to serial port.'
 
 def readlineCR(port):
     global boiler_data
