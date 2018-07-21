@@ -2,6 +2,7 @@ import serial
 import time
 import alerts
 import creds
+import sql
 #import paho.mqtt.client as mqtt
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
@@ -16,18 +17,31 @@ def on_connect(client, userdata, flags, rc):
     print("Connected with result code "+str(rc))
     # Subscribing in on_connect() means that if we lose the connection and
     # reconnect then subscriptions will be renewed.
-    client.subscribe("boiler/switch")
+    client.subscribe("boiler/#")
 
 # The callback for when a PUBLISH message is received from the server.
 def on_message(client, userdata, msg):
-    print(msg.topic+' '+str(msg.payload))
-    if ('Setpoint' in str(msg.payload)) or ('State'  in str(msg.payload)):
-    	port.write('\r\n'+str(msg.payload)+'\r')
-        print 'Sent ' + msg.payload + ' to serial port.'
-    allowed_passthrough_msg = ['Turn Off Boiler', 'Turn On Boiler', 'Increase SetPoint', 'Decrease SetPoint']
-    if str(msg.payload) in allowed_passthrough_msg:
-    	port.write('\r\n'+str(msg.payload)+'\r')
-        print 'Sent ' + msg.payload + ' to serial port.'
+    # print(msg.topic+' '+str(msg.payload))
+    if 'switch' in msg.topic:
+        if ('Setpoint' in str(msg.payload)) or ('State'  in str(msg.payload)):
+        	port.write('\r\n'+str(msg.payload)+'\r')
+            print 'Sent ' + msg.payload + ' to serial port.'
+        allowed_passthrough_msg = ['Turn Off Boiler', 'Turn On Boiler', 'Increase SetPoint', 'Decrease SetPoint']
+        if str(msg.payload) in allowed_passthrough_msg:
+        	port.write('\r\n'+str(msg.payload)+'\r')
+            print 'Sent ' + msg.payload + ' to serial port.'
+    if 'temp' in msg.topic:
+        temp_type = msg.topic.split('/')[-1:]
+        print 'temp type is: '+temp_type+', value is: '+(str)msg.payload
+        sql.write(temp_type, (int)msg.payload)
+    if 'state' in msg.topic:
+        sql.write('state', msg.paylaod)
+    if 'pid' in msg.topic:
+        pid_type = msg.topic.split('/')[-1:]
+        sql.write(pid_type, int(msg.payload))
+    if 'flame' in msg.topic:
+        sql.write('flame', int(msg.topic))
+
 
 def write_setpoint(setpoint):
 	port.write('\r\n'+'Setpoint'+'['+setpoint+']'+'\r')
