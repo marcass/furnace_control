@@ -7,7 +7,7 @@ from passlib.hash import pbkdf2_sha256
 import datetime
 from datetime import timedelta
 
-users_db = '/home/marcus/git/arduino_access_control/python/door_database.db'
+users_db = '/home/marcus/git/furnace_control/python/boiler_database.db'
 tz = 'Pacific/Auckland'
 
 def localtime_from_response(resp):
@@ -47,7 +47,7 @@ def setup_db():
     conn, c = get_db()
     #type is of 'mqtt', 'keycode' or 'rfid'
     c.execute('''CREATE TABLE IF NOT EXISTS boiler
-                    (timestamp TIMESTAMP, state TEXT, water INTEGER, auger INTEGER, fan INTEGER, pause INTEGER, feed INTEGER, setpoint INTEGER)''')
+                    (timestamp TIMESTAMP, state TEXT, water INTEGER, auger INTEGER, fan INTEGER, pause INTEGER, feed INTEGER, setpoint INTEGER, flame INTEGER)''')
     conn.commit() # Save (commit) the changes
 
 def setup_admin_user(user, passw):
@@ -93,8 +93,11 @@ def get_doorlog(door, resp):
 ############  Write data ########################
 def write(col, payload):
     utcnow = datetime.datetime.utcnow()
+    # print col
+    # print payload
+    # print utcnow
     conn, c = get_db()
-    c.execute("INSERT INTO boiler (timestamp, %s,) VALUES (?,?)" %(col), (utcnow, payload)
+    c.execute("INSERT INTO boiler (timestamp, %s) VALUES (?,?)" %(col), (utcnow, payload))
     conn.commit()
     return {'Status':'Success', 'Message': col + ' successfully updated with '+str(payload)}
 
