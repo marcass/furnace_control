@@ -1,4 +1,4 @@
-# furnace_control
+# furnace_control DEPRECATED (see arduino_accesss_control)
 Control a FUWI pellet boiler with arduino to improve smarts
 
 After having 2 controal boards malfunction I have decided to roll my own with some improved modulation of fan speed and pellet feeding. Reporting or interface issues will be addressed also
