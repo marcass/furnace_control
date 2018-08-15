@@ -2,9 +2,7 @@ import serial
 import time
 import boiler_alerts as alerts
 import creds
-import boiler_data as data
-import sensor_data as graph
-#import paho.mqtt.client as mqtt
+import influx as data
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
 
@@ -42,15 +40,15 @@ def on_message(client, userdata, msg):
         except:
             state = msg.payload
         # print 'state is blah '+str(msg.payload)
-        data.write_data('state', 'status', str(msg.payload))
-        graph.write_data({'type':'state', 'sensorID':'state', 'site': 'boiler', 'value':str(msg.payload)})
+        # data.write_data('state', 'status', str(msg.payload))
+        data.write_data({'type':'state', 'sensorID':'state', 'site': 'boiler', 'value':str(msg.payload)})
     if 'pid' in msg.topic:
         pid_type = msg.topic.split('/')[-1:][0]
-        data.write_data(pid_type, 'pid', int(msg.payload))
-        graph.write_data({'type':'pid', 'sensorID':pid_type, 'site': 'boiler', 'value':int(msg.payload)})
+        # data.write_data(pid_type, 'pid', int(msg.payload))
+        data.write_data({'type':'pid', 'sensorID':pid_type, 'site': 'boiler', 'value':int(msg.payload)})
     if 'flame' in msg.topic:
-        data.write_data('burn', 'flame', int(msg.payload))
-        graph.write_data({'type':'light', 'sensorID':'flame', 'site': 'boiler', 'value':int(msg.payload)})
+        # data.write_data('burn', 'flame', int(msg.payload))
+        data.write_data({'type':'light', 'sensorID':'flame', 'site': 'boiler', 'value':int(msg.payload)})
 
 
 def write_setpoint(setpoint):
