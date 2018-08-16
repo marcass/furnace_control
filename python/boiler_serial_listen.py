@@ -2,14 +2,56 @@ import serial
 import time
 import boiler_alerts as alerts
 import creds
-import influx as data
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
+import requests
+import creds
+import json
+
+AUTH_URL = 'https://skibo.duckdns.org/api/auth/login'
+DATA_URL = 'https://skibo.duckdns.org/influx/data'
+headers = ''
+jwt = ''
+jwt_refresh = ''
+refresh_headers = {"Authorization": "Bearer %s" %jwt_refresh}
 
 # dict of topics for messaging
 boiler_topics = {"boiler/state":"State", "boiler/temp/water":"Water temp", "boiler/temp/auger": "Auger temp", "boiler/temp/setpoint": "Setpoint"}
 boiler_data = {'State': '', 'Water temp': 0, 'Auger temp': 0, 'Setpoint': 0}
 
+def getToken():
+    global jwt
+    global jwt_refresh
+    global headers
+    r = requests.post(AUTH_URL+'/auth/login', json = {'username': creds.user, 'password': creds.password})
+    tokens = r.json()
+    #print 'token data is: ' +str(tokens)
+    try:
+        jwt = tokens['access_token']
+        jwt_refresh = tokens['refresh_token']
+        headers = {"Authorization":"Bearer %s" %jwt}
+    except:
+        print 'oops, no token for you'
+
+def post_data(data):
+    global jwt
+    global jwt_refresh
+    global headers
+    if (jwt == ''):
+        print 'Getting token'
+        getToken()
+    ret = requests.post(URL, json = data, headers = headers)
+    #print 'First response is: ' +str(r)
+    if '200' not in str(ret):
+        print 'Oops, not authenticated'
+        try:
+            getToken()
+            ret = requests.post(URL, json = data, headers = headers)
+            print 'Post NOT 200 response is: ' +str(r)
+        except:
+            r =  {'Status': 'Error', 'Message': 'Failed ot get token, so cannot perform request'}
+    print ret.json()
+    return ret.json()
 
 # The callback for when the client receives a CONNACK response from the server.
 def on_connect(client, userdata, flags, rc):
@@ -33,7 +75,7 @@ def on_message(client, userdata, msg):
         temp_type = msg.topic.split('/')[-1:][0]
         # print 'temp type is: '+str(temp_type)+', value is: '+str(msg.payload)
         data.write_data(temp_type, 'temperature', int(msg.payload))
-        graph.write_data({'type':'temp', 'sensorID':temp_type, 'site': 'boiler', 'value':float(msg.payload)})
+        post_data({'type':'temp', 'sensorID':temp_type, 'site': 'boiler', 'value':float(msg.payload)})
     if 'state' in msg.topic:
         try:
             state = msg.payload.replace('\r', '')
@@ -41,14 +83,14 @@ def on_message(client, userdata, msg):
             state = msg.payload
         # print 'state is blah '+str(msg.payload)
         # data.write_data('state', 'status', str(msg.payload))
-        data.write_data({'type':'state', 'sensorID':'state', 'site': 'boiler', 'value':str(msg.payload)})
+        post_data({'type':'state', 'sensorID':'state', 'site': 'boiler', 'value':str(msg.payload)})
     if 'pid' in msg.topic:
         pid_type = msg.topic.split('/')[-1:][0]
         # data.write_data(pid_type, 'pid', int(msg.payload))
-        data.write_data({'type':'pid', 'sensorID':pid_type, 'site': 'boiler', 'value':int(msg.payload)})
+        post_data({'type':'pid', 'sensorID':pid_type, 'site': 'boiler', 'value':int(msg.payload)})
     if 'flame' in msg.topic:
         # data.write_data('burn', 'flame', int(msg.payload))
-        data.write_data({'type':'light', 'sensorID':'flame', 'site': 'boiler', 'value':int(msg.payload)})
+        post_data({'type':'light', 'sensorID':'flame', 'site': 'boiler', 'value':int(msg.payload)})
 
 
 def write_setpoint(setpoint):
