@@ -9,7 +9,7 @@ import creds
 import json
 
 AUTH_URL = 'https://skibo.duckdns.org/api/auth/login'
-DATA_URL = 'https://skibo.duckdns.org/influx/data'
+DATA_URL = 'https://skibo.duckdns.org/api/data'
 headers = ''
 jwt = ''
 jwt_refresh = ''
@@ -23,7 +23,7 @@ def getToken():
     global jwt
     global jwt_refresh
     global headers
-    r = requests.post(AUTH_URL+'/auth/login', json = {'username': creds.user, 'password': creds.password})
+    r = requests.post(AUTH_URL, json = {'username': creds.user, 'password': creds.password})
     tokens = r.json()
     #print 'token data is: ' +str(tokens)
     try:
@@ -40,17 +40,18 @@ def post_data(data):
     if (jwt == ''):
         print 'Getting token'
         getToken()
-    ret = requests.post(URL, json = data, headers = headers)
-    #print 'First response is: ' +str(r)
+    ret = requests.post(DATA_URL, json = data, headers = headers)
+    #print 'JWT = '+str(jwt)
+    #print 'First response is: ' +str(ret)
     if '200' not in str(ret):
         print 'Oops, not authenticated'
         try:
             getToken()
-            ret = requests.post(URL, json = data, headers = headers)
+            ret = requests.post(DATA_URL, json = data, headers = headers)
             print 'Post NOT 200 response is: ' +str(r)
         except:
-            r =  {'Status': 'Error', 'Message': 'Failed ot get token, so cannot perform request'}
-    print ret.json()
+            ret =  {'Status': 'Error', 'Message': 'Failed ot get token, so cannot perform request'}
+    #print ret
     return ret.json()
 
 # The callback for when the client receives a CONNACK response from the server.
@@ -74,8 +75,8 @@ def on_message(client, userdata, msg):
     if 'temp' in msg.topic:
         temp_type = msg.topic.split('/')[-1:][0]
         # print 'temp type is: '+str(temp_type)+', value is: '+str(msg.payload)
-        data.write_data(temp_type, 'temperature', int(msg.payload))
-        post_data({'type':'temp', 'sensorID':temp_type, 'site': 'boiler', 'value':float(msg.payload)})
+        #data.write_data(temp_type, 'temperature', int(msg.payload))
+        post_data({'type':'temp', 'sensor':temp_type, 'group': 'boiler', 'value':float(msg.payload)})
     if 'state' in msg.topic:
         try:
             state = msg.payload.replace('\r', '')
@@ -83,14 +84,14 @@ def on_message(client, userdata, msg):
             state = msg.payload
         # print 'state is blah '+str(msg.payload)
         # data.write_data('state', 'status', str(msg.payload))
-        post_data({'type':'state', 'sensorID':'state', 'site': 'boiler', 'value':str(msg.payload)})
+        post_data({'type':'state', 'sensor':'state', 'group': 'boiler', 'value':str(msg.payload)})
     if 'pid' in msg.topic:
         pid_type = msg.topic.split('/')[-1:][0]
         # data.write_data(pid_type, 'pid', int(msg.payload))
-        post_data({'type':'pid', 'sensorID':pid_type, 'site': 'boiler', 'value':int(msg.payload)})
+        post_data({'type':'pid', 'sensor':pid_type, 'group': 'boiler', 'value':int(msg.payload)})
     if 'flame' in msg.topic:
         # data.write_data('burn', 'flame', int(msg.payload))
-        post_data({'type':'light', 'sensorID':'flame', 'site': 'boiler', 'value':int(msg.payload)})
+        post_data({'type':'light', 'sensor':'flame', 'group': 'boiler', 'value':int(msg.payload)})
 
 
 def write_setpoint(setpoint):
