@@ -84,14 +84,14 @@ def on_message(client, userdata, msg):
             state = msg.payload
         # print 'state is blah '+str(msg.payload)
         # data.write_data('state', 'status', str(msg.payload))
-        post_data({'type':'state', 'sensor':'state', 'group': 'boiler', 'value':str(msg.payload)})
+        post_data({'state':boiler_data['state'], 'type':'state', 'sensor':'state', 'group': 'boiler', 'value':str(msg.payload)})
     if 'pid' in msg.topic:
         pid_type = msg.topic.split('/')[-1:][0]
         # data.write_data(pid_type, 'pid', int(msg.payload))
-        post_data({'type':'pid', 'sensor':pid_type, 'group': 'boiler', 'value':int(msg.payload)})
+        post_data({'state':boiler_data['state'],'type':'pid', 'sensor':pid_type, 'group': 'boiler', 'value':int(msg.payload)})
     if 'flame' in msg.topic:
         # data.write_data('burn', 'flame', int(msg.payload))
-        post_data({'type':'light', 'sensor':'flame', 'group': 'boiler', 'value':int(msg.payload)})
+        post_data({'state':boiler_data['state'],'type':'light', 'sensor':'flame', 'group': 'boiler', 'value':int(msg.payload)})
 
 
 def write_setpoint(setpoint):
