@@ -76,7 +76,7 @@ def on_message(client, userdata, msg):
         temp_type = msg.topic.split('/')[-1:][0]
         # print 'temp type is: '+str(temp_type)+', value is: '+str(msg.payload)
         #data.write_data(temp_type, 'temperature', int(msg.payload))
-        post_data({'type':'temp', 'sensor':temp_type, 'group': 'boiler', 'value':float(msg.payload)})
+        post_data({'state':boiler_data['state'], 'type':'temp', 'sensor':temp_type, 'group': 'boiler', 'value':float(msg.payload)})
     if 'state' in msg.topic:
         try:
             state = msg.payload.replace('\r', '')
@@ -123,7 +123,10 @@ def readlineCR(port):
                     alerts.send_alert('Gobgoyle says: '+payload)
                 try:
                     if topic in boiler_topics:
-                        boiler_data[boiler_topics[topic]] = payload
+                        if topic == 'boiler/state':
+                            boiler_data[boiler_topics[topic]] = payload.replace('\r', '')
+                        else:
+                            boiler_data[boiler_topics[topic]] = payload
                 except:
                     # we don't care about this topic
                     # print 'oops'
