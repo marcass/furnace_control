@@ -76,7 +76,7 @@ def on_message(client, userdata, msg):
         temp_type = msg.topic.split('/')[-1:][0]
         # print 'temp type is: '+str(temp_type)+', value is: '+str(msg.payload)
         #data.write_data(temp_type, 'temperature', int(msg.payload))
-        post_data({'state':boiler_data['state'], 'type':'temp', 'sensor':temp_type, 'group': 'boiler', 'value':float(msg.payload)})
+        post_data({'state':boiler_data['State'], 'type':'temp', 'sensor':temp_type, 'group': 'boiler', 'value':float(msg.payload)})
     if 'state' in msg.topic:
         try:
             state = msg.payload.replace('\r', '')
@@ -84,14 +84,14 @@ def on_message(client, userdata, msg):
             state = msg.payload
         # print 'state is blah '+str(msg.payload)
         # data.write_data('state', 'status', str(msg.payload))
-        post_data({'state':boiler_data['state'], 'type':'state', 'sensor':'state', 'group': 'boiler', 'value':str(msg.payload)})
+        post_data({'state':boiler_data['State'], 'type':'state', 'sensor':'state', 'group': 'boiler', 'value':state})
     if 'pid' in msg.topic:
         pid_type = msg.topic.split('/')[-1:][0]
         # data.write_data(pid_type, 'pid', int(msg.payload))
-        post_data({'state':boiler_data['state'],'type':'pid', 'sensor':pid_type, 'group': 'boiler', 'value':int(msg.payload)})
+        post_data({'state':boiler_data['State'],'type':'pid', 'sensor':pid_type, 'group': 'boiler', 'value':int(msg.payload)})
     if 'flame' in msg.topic:
         # data.write_data('burn', 'flame', int(msg.payload))
-        post_data({'state':boiler_data['state'],'type':'light', 'sensor':'flame', 'group': 'boiler', 'value':int(msg.payload)})
+        post_data({'state':boiler_data['State'],'type':'light', 'sensor':'flame', 'group': 'boiler', 'value':int(msg.payload)})
 
 
 def write_setpoint(setpoint):
@@ -111,12 +111,12 @@ def readlineCR(port):
         rv += ch
         if ch=='\r':# or ch=='':
             if 'MQTT' in rv:
-                print rv
+                #print rv
                 received = rv[6:]
                 received_splited = received.split('/')
                 topic = '/'.join(received_splited[:-1])
                 payload = received_splited[-1]
-                print topic, payload
+                #print topic, payload
                 publish.single(topic, payload, auth=auth, hostname=creds.broker, retain=True)
                 if (topic == 'boiler/messages'):
                     # print 'Got an error message'
