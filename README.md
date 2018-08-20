@@ -35,39 +35,39 @@ This repository deals with the arduino sketch, the PCB and the communication int
 Hardware fail-safes are ideal as software may have problems that result in uncontrolled fire! Currently the boiler uses a device that breaks the neutral feed to the fan and element so it does not provide continuance when it is over a certain termperature (90 degrees C)
  * Error state pulls all relays to low
  * Idle state pulls fan and element to low
- 
- ## States
+
+## States
 1. Idle
 2. Start_up
 3. Heating
 4. Cool_down
 5. Error
 6. Off
- 
- ### Idle
+
+### Idle
  Wait for closed contact from 1-wire bus to transition into start_up. When contact closed: Blow fan to see if flame detected:
 * if flame detected -> Heating
 * if no flame -> Start_up
- 
- ### Start up
+
+### Start up
 1. Blow fan first to see if a flame will start
 1. Pellet dump to get something for element to light
 2. Element heating of pellet load
 3. Gentle fan (phase angled to 30% or so) to start fire until light over threshold sensed
 4. Pellet feed and full fan when light over threshold
 5. Transition into heating when water temp over 50C
- 
- ### Heating
+
+### Heating
 1. PID control of trend of water temp and this affects fan speed through PWM and pellet feed rate
 2. Start circ pump if over 50C
 3. Pull fan relay low and circ pump high if temp over 85C
 4. Transition to cool down if contact from 1-wire is opened
- 
- ### Cool_down
+
+### Cool_down
 1. Pull fan low and circ pump high until temp <60C
 2. Transition to idle when below 60C
- 
- ### Error
+
+### Error
  Catch all that pulls fan adn element low
 
 
@@ -95,7 +95,7 @@ http://playground.arduino.cc/Code/ACPWM
 * 15k Ohm resistors need to be rated for 5w on 240VAC side (consumes 3.8W of power)
 * 1.5k Resistor needs to be 50W on 240VAC side (consumes 38W of power) if constant power, but as MOC305 datasheet states:
 
-"The power dissapation of this current limiting resistor and the triac driver is very small because the power triac carris the load current as soon as the current through the driver and current limiting resistor reaches the trigger current of teh power triac" 
+"The power dissapation of this current limiting resistor and the triac driver is very small because the power triac carris the load current as soon as the current through the driver and current limiting resistor reaches the trigger current of teh power triac"
 
 Switching times for the driver are 1 micro second and 4 micro seconds for the power triac
 
@@ -112,7 +112,7 @@ PCB in kicad files in this repo
 
 ## Communication interface on serial port
 Uses:
-* pyserial to capture data/print data to serial port (arduino)
+* pyserial to capture data/print data to serial port (arduino) and insert into database
 * paho-mqtt for subscribing/publishing to mosquitto broker
 * mosquitto broker for managing infomration
 
@@ -122,9 +122,7 @@ See udev rules in repo:
 * runs systemd service that starts the pythion script for managing stuff to and from arduino
 
 ###Data capture
-Performed by a modified script (for paho-mqtt) from https://www.clusterfsck.io/blog/mqtt-to-rrd-daemon/
-* Run at startup via systemd
-* need to place a symlink following symlink /etc/mqtt2rrd.conf pointing to target file unless you want to pass --config_file option in command (didn't work for me)y
+Inserting data into influxdb and graphing via a vuejs frontend using plotly. See https://skibo.duckdns.org/sensors/#/graphs (repo here: https://github.com/marcass/esp32-sensornet/tree/master/sensornet)
 
 
 ##Device
