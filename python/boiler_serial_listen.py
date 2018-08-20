@@ -47,12 +47,13 @@ def post_data(data):
         print 'Oops, not authenticated'
         try:
             getToken()
-            ret = requests.post(DATA_URL, json = data, headers = headers)
+            requests.post(DATA_URL, json = data, headers = headersi)
+            ret = {'Status': 'Error', 'Message': 'Got token'}
             print 'Post NOT 200 response is: ' +str(r)
         except:
             ret =  {'Status': 'Error', 'Message': 'Failed ot get token, so cannot perform request'}
     #print ret
-    return ret.json()
+    #return ret.json()
 
 # The callback for when the client receives a CONNACK response from the server.
 def on_connect(client, userdata, flags, rc):
