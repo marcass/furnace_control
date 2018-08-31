@@ -77,7 +77,7 @@ def on_message(client, userdata, msg):
         temp_type = msg.topic.split('/')[-1:][0]
         # print 'temp type is: '+str(temp_type)+', value is: '+str(msg.payload)
         #data.write_data(temp_type, 'temperature', int(msg.payload))
-        post_data({'state':boiler_data['State'], 'type':'temp', 'sensor':temp_type, 'group': 'boiler', 'value':float(msg.payload)})
+        post_data({'state':boiler_data['State'], 'type':'temp', 'sensor':temp_type, 'group': 'boiler', 'value':float(msg.payload), 'measurement': 'things'})
     if 'state' in msg.topic:
         try:
             state = msg.payload.replace('\r', '')
@@ -85,14 +85,14 @@ def on_message(client, userdata, msg):
             state = msg.payload
         # print 'state is blah '+str(msg.payload)
         # data.write_data('state', 'status', str(msg.payload))
-        post_data({'state':boiler_data['State'], 'type':'state', 'sensor':'state', 'group': 'boiler', 'value':state})
+        post_data({'state':boiler_data['State'], 'type':'state', 'sensor':'state', 'group': 'boiler', 'value':state, 'measurement': 'things'})
     if 'pid' in msg.topic:
         pid_type = msg.topic.split('/')[-1:][0]
         # data.write_data(pid_type, 'pid', int(msg.payload))
-        post_data({'state':boiler_data['State'],'type':'pid', 'sensor':pid_type, 'group': 'boiler', 'value':int(msg.payload)})
+        post_data({'state':boiler_data['State'],'type':'pid', 'sensor':pid_type, 'group': 'boiler', 'value':int(msg.payload), 'measurement': 'things'})
     if 'flame' in msg.topic:
         # data.write_data('burn', 'flame', int(msg.payload))
-        post_data({'state':boiler_data['State'],'type':'light', 'sensor':'flame', 'group': 'boiler', 'value':int(msg.payload)})
+        post_data({'state':boiler_data['State'],'type':'light', 'sensor':'flame', 'group': 'boiler', 'value':int(msg.payload), 'measurement': 'things'})
 
 
 def write_setpoint(setpoint):
