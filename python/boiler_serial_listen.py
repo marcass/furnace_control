@@ -150,19 +150,19 @@ def chat_messg(msg):
         alerts.on_chat_message(msg, boiler_data)
         return
 
-mqtt_running = false
 
 def duckpunch():
     print 'Starting mqtt client'
     global mqtt_running
+    global client
     # start mqtt client
     client.loop_start()
     mqtt_running = True
     # Start message bot
-    alerts.MessageLoop(alerts.bot, {'chat': chat_messg, 'callback_query': alerts.on_callback_query}).run_as_thread()    client.loop_start()
+    alerts.MessageLoop(alerts.bot, {'chat': chat_messg, 'callback_query': alerts.on_callback_query}).run_as_thread()
 
 def start_listeners():
-    client = mqtt.Client()
+    global client
     client.username_pw_set(username='esp', password='heating')
     client.on_connect = on_connect
     client.on_message = on_message
@@ -177,6 +177,10 @@ port = serial.Serial("/dev/arduino", baudrate=9600, timeout=3.0)
 #port = serial.Serial("/dev/ttyUSB0", baudrate=9600, timeout=3.0)
 
 if __name__ == "__main__":
+    global client
+    global mqtt_running
+    mqtt_running = False
+    client = mqtt.Client()
     start_listeners()
     while True:
         if not mqtt_running:
