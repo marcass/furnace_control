@@ -7,6 +7,7 @@ import paho.mqtt.publish as publish
 import requests
 import creds
 import json
+from threading import Thread
 
 AUTH_URL = 'https://skibo.duckdns.org/api/auth/login'
 DATA_URL = 'https://skibo.duckdns.org/api/data'
@@ -149,22 +150,32 @@ def chat_messg(msg):
         alerts.on_chat_message(msg, boiler_data)
         return
 
+def duckpunch():
+    # start mqtt client
+        client.loop_start()
+        # Start message bot
+        alerts.MessageLoop(alerts.bot, {'chat': chat_messg, 'callback_query': alerts.on_callback_query}).run_as_thread()    client.loop_start()
+
+def start_listeners():
+    client = mqtt.Client()
+    client.username_pw_set(username='esp', password='heating')
+    client.on_connect = on_connect
+    client.on_message = on_message
+    client.connect(creds.broker, 1883, 60)
+    try:
+        duckpunch()
+    except:
+        print 'Restarting mqtt client'
+        client.loop_stop()
+        # recconnect
+        duckpunch()
 
 auth = creds.mosq_auth
 port = serial.Serial("/dev/arduino", baudrate=9600, timeout=3.0)
 #port = serial.Serial("/dev/ttyUSB0", baudrate=9600, timeout=3.0)
 
 if __name__ == "__main__":
-    client = mqtt.Client()
-    client.username_pw_set(username='esp', password='heating')
-
-    #mqtt.userdata_set(username='esp',password='heating')
-    client.on_connect = on_connect
-    client.on_message = on_message
-    client.connect(creds.broker, 1883, 60)
-    # Start message bot
-    alerts.MessageLoop(alerts.bot, {'chat': chat_messg, 'callback_query': alerts.on_callback_query}).run_as_thread()
-    client.loop_start()
+    start_listeners()
     while True:
         #for debugging enable printing of serial port data
         rcv = readlineCR(port)
