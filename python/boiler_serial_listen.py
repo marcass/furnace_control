@@ -150,11 +150,16 @@ def chat_messg(msg):
         alerts.on_chat_message(msg, boiler_data)
         return
 
+mqtt_running = false
+
 def duckpunch():
+    print 'Starting mqtt client'
+    global mqtt_running
     # start mqtt client
-        client.loop_start()
-        # Start message bot
-        alerts.MessageLoop(alerts.bot, {'chat': chat_messg, 'callback_query': alerts.on_callback_query}).run_as_thread()    client.loop_start()
+    client.loop_start()
+    mqtt_running = True
+    # Start message bot
+    alerts.MessageLoop(alerts.bot, {'chat': chat_messg, 'callback_query': alerts.on_callback_query}).run_as_thread()    client.loop_start()
 
 def start_listeners():
     client = mqtt.Client()
@@ -165,10 +170,7 @@ def start_listeners():
     try:
         duckpunch()
     except:
-        print 'Restarting mqtt client'
-        client.loop_stop()
-        # recconnect
-        duckpunch()
+        mqtt_running = False
 
 auth = creds.mosq_auth
 port = serial.Serial("/dev/arduino", baudrate=9600, timeout=3.0)
@@ -177,6 +179,14 @@ port = serial.Serial("/dev/arduino", baudrate=9600, timeout=3.0)
 if __name__ == "__main__":
     start_listeners()
     while True:
+        if not mqtt_running:
+            try:
+                # recconnect
+                duckpunch()
+                print 'Restarting mqtt client'
+            except:
+                client.loop_stop()
+                mqtt_running = False
         #for debugging enable printing of serial port data
         rcv = readlineCR(port)
         #print rcv
