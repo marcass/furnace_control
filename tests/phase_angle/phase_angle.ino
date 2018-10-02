@@ -28,7 +28,7 @@
 
 //#define test
 #define fan
-#define pump
+//#define pump
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -40,7 +40,7 @@ const int PUMP = 7;
 #define DETECT 2  //zero cross detect
 #define GATE 9    //TRIAC gate
 #define PULSE 4   //trigger pulse width (counts)
-int power= 8;
+int power= 10;
 int on_wait;
 char rx_byte = 0;
 String inString = "";    // string to hold input
@@ -103,7 +103,7 @@ void run_fan(int x) {
     digitalWrite(GATE,HIGH);
   }else {
     //do magic phase angle stuff here
-    /* x is the int as a percentage of fan power
+    /* x is the int as a range from 1-10 of fan power
      * OCR1A is the comparator for the phase angle cut-off
      * - when TCNT1 > OCR1A, ISR(TIMER1_OVF_vect) is called tellng optocoupler to power down
      * - 520 counts (16000000 cycles scaled to 256) per half AC sine wave
