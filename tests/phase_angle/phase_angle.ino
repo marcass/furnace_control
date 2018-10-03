@@ -24,7 +24,8 @@
 // The hardware timer runs at 16MHz. Using a
 // divide by 256 on the counter each count is 
 // 16 microseconds.  1/2 wave of a 60Hz AC signal
-// is about 520 counts (8,333 microseconds).
+// is about 520 counts (8,333 microseconds). So 50Hz
+// is 624
 
 //#define test
 #define fan
@@ -40,7 +41,7 @@ const int PUMP = 7;
 #define DETECT 2  //zero cross detect
 #define GATE 9    //TRIAC gate
 #define PULSE 4   //trigger pulse width (counts)
-int power= 10;
+int power= 100;
 int on_wait;
 char rx_byte = 0;
 String inString = "";    // string to hold input
@@ -99,9 +100,12 @@ void zeroCrossingInterrupt(){ //zero cross detect
 
 void run_fan(int x) { 
 
-  if (x == 10) { //no phase angle control needed if you want balls out fan speed
+  if (x > 70) { //no phase angle control needed if you want balls out fan speed (dies over 70%)
     digitalWrite(GATE,HIGH);
   }else {
+    if (x < 30) { //fan dies when phase angle control is below 30%
+      x = 30;
+    }
     //do magic phase angle stuff here
     /* x is the int as a range from 1-10 of fan power
      * OCR1A is the comparator for the phase angle cut-off
@@ -115,23 +119,26 @@ void run_fan(int x) {
     //set up interrupt
     attachInterrupt(0,zeroCrossingInterrupt, RISING);  // inturrupt 0 on digital pin 2
     //set a value that is a proportion of 520 for power
-    divisor = (float)x / 10;
-    proportion = divisor * 520;
-    on_wait = 520 - proportion;
+    divisor = (float)x / 100;
+//    proportion = divisor * 520;
+//    on_wait = 520 - proportion;
+    proportion = divisor * 624;
+    on_wait = 624 - proportion;
     //on_wait = (520 - (x / 10 * 520));
 //    Serial.print("on_wait = ");
 //    Serial.println(on_wait);
     //a value of 65 gives close to full power (overflow counter triggered early in wave turing triac on
     //a value of 480 gives close to fuck all power (don't want to be too close to zero cross 
     // when turning optocoupler off or latch will spill over to next half wave leaving it on
-    if ( on_wait < 104) {
-      OCR1A = 104;
-    }
-    if ( on_wait > 364) {
-      OCR1A = 364;
-    }else {
-      OCR1A = on_wait;
-    }
+//    if ( on_wait < 104) {
+//      OCR1A = 104;
+//    }
+//    if ( on_wait > 364) {
+//      OCR1A = 364;
+//    }else {
+//      OCR1A = on_wait;
+//    }
+    OCR1A = on_wait;
     #ifdef test
     Serial.print("   Number of counts until fire = ");
     Serial.println(OCR1A);

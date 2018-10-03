@@ -327,9 +327,12 @@ void fan(bool runFan, int x) {
       Serial.print(" FAN ON at ");
       Serial.print(x);
     #endif
-    if (x == 100) { //no phase angle control needed if you want balls out fan speed
+    if (x > 70) { //no phase angle control needed if you want balls out fan speed (over 70% kills it)
       digitalWrite(GATE,HIGH);
     }else {
+      if (x < 35) { //under 30% kills it and 30% has no flow
+        x = 30;
+      }
       //do magic phase angle stuff here
       /* x is the int as a percentage of fan power
        * OCR1A is the comparator for the phase angle cut-off
@@ -346,16 +349,9 @@ void fan(bool runFan, int x) {
       
       //set a value that is a proportion of 520 for power
       divisor = (float)x / 100;
-      proportion = divisor * 520;
-      on_wait = 520 - proportion;
-      if ( on_wait < 104) {
-        OCR1A = 104;
-      }
-      if ( on_wait > 364) {
-        OCR1A = 364;
-      }else {
-        OCR1A = on_wait;
-      }
+      proportion = divisor * 624;
+      on_wait = 624 - proportion;
+      OCR1A = on_wait;
     }
   }
 }
