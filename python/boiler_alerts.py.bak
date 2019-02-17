@@ -37,13 +37,13 @@ def on_chat_message(msg, payload):
 
 def on_callback_query(msg):
     query_id, from_id, query_data = telepot.glance(msg, flavor='callback_query')
-    print(('Callback Query:', query_id, from_id, query_data))
+    print('Callback Query:', query_id, from_id, query_data)
     #print msg
     target_id = msg['message']['chat']['id']
     if query_data == 'turn off':
-        print('turn off')
+        print 'turn off'
     if query_data == 'turn on':
-        print('turn on')
+        print 'turn on'
 
 #TOKEN = creds.testbotAPIKey
 bot = telepot.Bot(TOKEN)

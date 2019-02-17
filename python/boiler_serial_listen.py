@@ -32,25 +32,25 @@ def getToken():
         jwt_refresh = tokens['refresh_token']
         headers = {"Authorization":"Bearer %s" %jwt}
     except:
-        print 'oops, no token for you'
+        print ('oops, no token for you')
 
 def post_data(data):
     global jwt
     global jwt_refresh
     global headers
     if (jwt == ''):
-        print 'Getting token'
+        print ('Getting token')
         getToken()
     ret = requests.post(DATA_URL, json = data, headers = headers)
     #print 'JWT = '+str(jwt)
     #print 'First response is: ' +str(ret)
     if '200' not in str(ret):
-        print 'Oops, not authenticated'
+        print ('Oops, not authenticated')
         try:
             getToken()
             requests.post(DATA_URL, json = data, headers = headersi)
             ret = {'Status': 'Error', 'Message': 'Got token'}
-            print 'Post NOT 200 response is: ' +str(r)
+            print ('Post NOT 200 response is: ' +str(r))
         except:
             ret =  {'Status': 'Error', 'Message': 'Failed ot get token, so cannot perform request'}
     #print ret
@@ -65,25 +65,26 @@ def on_connect(client, userdata, flags, rc):
 
 # The callback for when a PUBLISH message is received from the server.
 def on_message(client, userdata, msg):
-    print(msg.topic+' '+str(msg.payload))
+    payload = str(msg.payload, 'UTF-8')
+    print(msg.topic+' '+payload)
     if 'switch' in msg.topic:
-        if ('Setpoint' in str(msg.payload)) or ('State'  in str(msg.payload)):
-            port.write('\r\n'+str(msg.payload)+'\r')
-            print 'Sent ' + msg.payload + ' to serial port.'
+        if ('Setpoint' in payload) or ('State'  in payload):
+            port.write('\r\n'+payload+'\r')
+            print ('Sent ' + payload + ' to serial port.')
         allowed_passthrough_msg = ['Turn Off Boiler', 'Turn On Boiler', 'Increase SetPoint', 'Decrease SetPoint']
-        if str(msg.payload) in allowed_passthrough_msg:
-            port.write('\r\n'+str(msg.payload)+'\r')
-            print 'Sent ' + msg.payload + ' to serial port.'
+        if payload in allowed_passthrough_msg:
+            port.write('\r\n'+payload+'\r')
+            print ('Sent ' + payload + ' to serial port.')
     if 'temp' in msg.topic:
         temp_type = msg.topic.split('/')[-1:][0]
-        # print 'temp type is: '+str(temp_type)+', value is: '+str(msg.payload)
+        print ('temp type is: '+str(temp_type)+', value is: '+payload)
         #data.write_data(temp_type, 'temperature', int(msg.payload))
         post_data({'tags': {'state':boiler_data['State'], 'type':'temp', 'sensorID':temp_type, 'site': 'boiler'}, 'value':float(msg.payload), 'measurement': 'things'})
     if 'state' in msg.topic:
         try:
             state = msg.payload.replace('\r', '')
         except:
-            state = msg.payload
+            state = payload
         # print 'state is blah '+str(msg.payload)
         # data.write_data('state', 'status', str(msg.payload))
         post_data({'tags': {'state':boiler_data['State'], 'type':'state', 'sensorID':'state', 'site': 'boiler'}, 'value':state, 'measurement': 'things'})
@@ -98,27 +99,31 @@ def on_message(client, userdata, msg):
 
 def write_setpoint(setpoint):
     port.write('\r\n'+'Setpoint'+'['+setpoint+']'+'\r')
-    print 'Sent Setpoint[' + setpoint + '] to serial port.'
+    print ('Sent Setpoint[' + setpoint + '] to serial port.')
 
 def write_state(state):
     # "Idle","Starting","Heating","Cool down","Error","Off"
     port.write('\r\n'+'State'+'['+state+']'+'\r')
-    print 'Sent State[' + state + '] to serial port.'
+    print ('Sent State[' + state + '] to serial port.')
 
 def readlineCR(port):
     global boiler_data
     rv = ""
     while True:
         ch = port.read()
-        rv += ch
-        if ch=='\r':# or ch=='':
+#        print(ch)
+#        rv += ch
+#       for python3 need to cast to str
+        rv += str(ch, 'UTF-8')
+#        print(rv)
+        if ch==b'\r':# or ch=='':
+            print(rv)
             if 'MQTT' in rv:
-                #print rv
                 received = rv[6:]
                 received_splited = received.split('/')
                 topic = '/'.join(received_splited[:-1])
                 payload = received_splited[-1]
-                #print topic, payload
+                print (topic, payload)
                 publish.single(topic, payload, auth=auth, hostname=creds.broker, retain=True)
                 if (topic == 'boiler/messages'):
                     # print 'Got an error message'
@@ -138,21 +143,21 @@ def readlineCR(port):
 # Alerts setup:
 def chat_messg(msg):
     if '/turn off' in msg['text']:
-        print 'turning off'
+        print ('turning off')
         port.write('\r\n'+'Turn Off Boiler'+'\r')
         return
     if '/turn on' in msg['text']:
-        print 'turning on'
+        print ('turning on')
         port.write('\r\n'+'Turn On Boiler'+'\r')
         return
     else:
-        print 'doing other stuff'
+        print ('doing other stuff')
         alerts.on_chat_message(msg, boiler_data)
         return
 
 
 def duckpunch():
-    print 'Starting mqtt client'
+    print ('Starting mqtt client')
     global mqtt_running
     global client
     # start mqtt client
@@ -187,7 +192,7 @@ if __name__ == "__main__":
             try:
                 # recconnect
                 duckpunch()
-                print 'Restarting mqtt client'
+                print ('Restarting mqtt client')
             except:
                 client.loop_stop()
                 mqtt_running = False
