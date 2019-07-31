@@ -13,8 +13,6 @@ AUTH_URL = 'https://skibo.duckdns.org/api/auth/login'
 DATA_URL = 'https://skibo.duckdns.org/api/data'
 headers = ''
 jwt = ''
-jwt_refresh = ''
-refresh_headers = {"Authorization": "Bearer %s" %jwt_refresh}
 
 # dict of topics for messaging
 boiler_topics = {"boiler/state":"State", "boiler/temp/water":"Water temp", "boiler/temp/auger": "Auger temp", "boiler/temp/setpoint": "Setpoint"}
@@ -22,21 +20,18 @@ boiler_data = {'State': '', 'Water temp': 0, 'Auger temp': 0, 'Setpoint': 0}
 
 def getToken():
     global jwt
-    global jwt_refresh
     global headers
     r = requests.post(AUTH_URL, json = {'username': creds.user, 'password': creds.password})
     tokens = r.json()
     #print 'token data is: ' +str(tokens)
     try:
         jwt = tokens['access_token']
-        jwt_refresh = tokens['refresh_token']
         headers = {"Authorization":"Bearer %s" %jwt}
     except:
         print ('oops, no token for you')
 
 def post_data(data):
     global jwt
-    global jwt_refresh
     global headers
     if (jwt == ''):
         print ('Getting token')
