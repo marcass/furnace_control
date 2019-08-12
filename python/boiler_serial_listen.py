@@ -77,10 +77,12 @@ def on_message(client, userdata, msg):
         post_data({'tags': {'state':boiler_data['State'], 'type':'temp', 'sensorID':temp_type, 'site': 'boiler'}, 'value':float(msg.payload), 'measurement': 'things'})
     if 'state' in msg.topic:
         try:
-            state = msg.payload.replace('\r', '')
+            state = msg.payload.decode(encoding='UTF8').replace('\r', '')
+            #print("replaced stuff")
         except:
             state = payload
-        # print 'state is blah '+str(msg.payload)
+            #print("didn't replace stuff")
+        #print ('state is blah '+state)
         # data.write_data('state', 'status', str(msg.payload))
         post_data({'tags': {'state':boiler_data['State'], 'type':'state', 'sensorID':'state', 'site': 'boiler'}, 'value':state, 'measurement': 'things'})
     if 'pid' in msg.topic:
