@@ -1,6 +1,6 @@
 import serial
 import time
-import boiler_alerts as alerts
+# import boiler_alerts as alerts
 import creds
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
@@ -138,19 +138,19 @@ def readlineCR(port):
             return rv
 
 # Alerts setup:
-def chat_messg(msg):
-    if '/turn off' in msg['text']:
-        print ('turning off')
-        port.write('\r\n'+'Turn Off Boiler'+'\r')
-        return
-    if '/turn on' in msg['text']:
-        print ('turning on')
-        port.write('\r\n'+'Turn On Boiler'+'\r')
-        return
-    else:
-        print ('doing other stuff')
-        alerts.on_chat_message(msg, boiler_data)
-        return
+# def chat_messg(msg):
+#     if '/turn off' in msg['text']:
+#         print ('turning off')
+#         port.write('\r\n'+'Turn Off Boiler'+'\r')
+#         return
+#     if '/turn on' in msg['text']:
+#         print ('turning on')
+#         port.write('\r\n'+'Turn On Boiler'+'\r')
+#         return
+#     else:
+#         print ('doing other stuff')
+#         alerts.on_chat_message(msg, boiler_data)
+#         return
 
 
 def duckpunch():
@@ -161,11 +161,11 @@ def duckpunch():
     client.loop_start()
     mqtt_running = True
     # Start message bot
-    alerts.MessageLoop(alerts.bot, {'chat': chat_messg, 'callback_query': alerts.on_callback_query}).run_as_thread()
+    # alerts.MessageLoop(alerts.bot, {'chat': chat_messg, 'callback_query': alerts.on_callback_query}).run_as_thread()
 
 def start_listeners():
     global client
-    client.username_pw_set(username='esp', password='heating')
+    # client.username_pw_set(username='user', password='pass')
     client.on_connect = on_connect
     client.on_message = on_message
     client.connect(creds.broker, 1883, 60)
