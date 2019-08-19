@@ -17,6 +17,13 @@ jwt = ''
 # dict of topics for messaging
 boiler_topics = {"boiler/state":"State", "boiler/temp/water":"Water temp", "boiler/temp/auger": "Auger temp", "boiler/temp/setpoint": "Setpoint"}
 boiler_data = {'State': '', 'Water temp': 0, 'Auger temp': 0, 'Setpoint': 0}
+# const int STATE_IDLE = 0;
+# const int STATE_START_UP = 1;
+# const int STATE_HEATING = 2;
+# const int STATE_COOL_DOWN = 3;
+# const int STATE_ERROR = 4;
+# const int STATE_OFF = 5;
+boiler_state = {0: 'Idle', 1: 'Starting', 2: 'Heating', 3: 'Cooling', 4: 'Error', 5: 'Off'}
 
 def getToken():
     global jwt
@@ -85,6 +92,7 @@ def on_message(client, userdata, msg):
         #print ('state is blah '+state)
         # data.write_data('state', 'status', str(msg.payload))
         post_data({'tags': {'state':boiler_data['State'], 'type':'state', 'sensorID':'state', 'site': 'boiler'}, 'value':state, 'measurement': 'things'})
+        publish.single('boiler/state/readable', boiler_state[int(payload)], hostname=creds.broker, retain=True)
     if 'pid' in msg.topic:
         pid_type = msg.topic.split('/')[-1:][0]
         # data.write_data(pid_type, 'pid', int(msg.payload))
@@ -120,11 +128,12 @@ def readlineCR(port):
                 received_splited = received.split('/')
                 topic = '/'.join(received_splited[:-1])
                 payload = received_splited[-1]
-                print (topic, payload)
-                publish.single(topic, payload, auth=auth, hostname=creds.broker, retain=True)
-                if (topic == 'boiler/messages'):
-                    # print 'Got an error message'
-                    alerts.send_alert('Gobgoyle says: '+payload)
+                # print (topic, payload)
+                # publish.single(topic, payload, auth=auth, hostname=creds.broker, retain=True)
+                publish.single(topic, payload, hostname=creds.broker, retain=True)
+                # if (topic == 'boiler/messages'):
+                #     # print 'Got an error message'
+                #     alerts.send_alert('Gobgoyle says: '+payload)
                 try:
                     if topic in boiler_topics:
                         if topic == 'boiler/state':
