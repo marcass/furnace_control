@@ -43,7 +43,7 @@ unsigned long PUMP_TIME = 30000; //30s in ms to avoid short cycling pump
 unsigned int BUTTON_ON_THRESHOLD = 1500;//1.5s in ms for turning from off to idle and vice versa
 unsigned long FEED_PAUSE = 24000; //60s and calculating a result so might need to be a float
 unsigned long FEED_TIME = 10000;//default pellet feed time
-unsigned long STATE_CHANGE_THRES = 5000;//time that needs to elapse before changing STATE_START_UP <- STATE_HEATING
+unsigned long STATE_CHANGE_THRES = 60000;//time that needs to elapse before changing STATE_START_UP <- STATE_HEATING
 unsigned long STATE_CHANGE_THRES_UP = 2000;//time that needs to elapse before changing STATE_START_UP -> STATE_HEATING
 unsigned long STOP_THRESH = 5000; //for  fan short cycling
 unsigned long ERROR_THRES = 5000;//time that must elapse before goes into error at startup (not working at present)
@@ -395,7 +395,8 @@ void fan_and_pellet_management() {
     state = STATE_COOL_DOWN;
     #ifdef mqtt
       //
-      publish(STATE_TOPIC, STATES_STRING[state]);
+      // publish(STATE_TOPIC, STATES_STRING[state]);
+      publish(STATE_TOPIC, state);
     #endif
   }else {
     #ifdef no_PID
@@ -475,7 +476,8 @@ void going_yet() {
       dump_count = 1;
       #ifdef mqtt
         //
-        publish(STATE_TOPIC, STATES_STRING[state]);
+        // publish(STATE_TOPIC, STATES_STRING[state]);
+        publish(STATE_TOPIC, state);
       #endif
       fan_start = 0;
       element_start = 0;
@@ -778,7 +780,8 @@ void proc_heating() {
       dump = false;
       #ifdef mqtt
         //
-        publish(STATE_TOPIC, STATES_STRING[state]);
+        // publish(STATE_TOPIC, STATES_STRING[state]);
+        publish(STATE_TOPIC, state);
       #endif
       state_trans_start = 0;
     }
@@ -865,7 +868,8 @@ void proc_error() {
       state = STATE_OFF;
       #ifdef mqtt
         //
-        publish(STATE_TOPIC, STATES_STRING[state]);
+        // publish(STATE_TOPIC, STATES_STRING[state]);
+        publish(STATE_TOPIC, state);
       #endif
       //delay(10);
     }else {
@@ -910,7 +914,8 @@ void loop() {
       state = STATE_COOL_DOWN;
       #ifdef mqtt
         //
-        publish(STATE_TOPIC, STATES_STRING[state]);
+        // publish(STATE_TOPIC, STATES_STRING[state]);
+        publish(STATE_TOPIC, state);
       #endif
     }
   }
@@ -951,7 +956,8 @@ void loop() {
         state = STATE_COOL_DOWN;
       }
       #ifdef mqtt
-        publish(STATE_TOPIC, STATES_STRING[state]);
+        // publish(STATE_TOPIC, STATES_STRING[state]);
+        publish(STATE_TOPIC, state);
       #endif
     }
     if (inputString.startsWith("Turn On Boiler")) {
@@ -959,7 +965,8 @@ void loop() {
       stringComplete = false;
       state = STATE_IDLE;
       #ifdef mqtt
-        publish(STATE_TOPIC, STATES_STRING[state]);
+        // publish(STATE_TOPIC, STATES_STRING[state]);
+        publish(STATE_TOPIC, state);
       #endif
 //      reason = "";
 //      #ifdef mqtt
