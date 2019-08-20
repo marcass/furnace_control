@@ -173,7 +173,7 @@ unsigned long prevMillis;
 //MQTT *****************************************************************************************
 
 #ifdef mqtt
-  long PUB_INTERVAL = 1000; //1 second to cylce between publishing events while running
+  unsigned long PUB_INTERVAL = 1000; //1 second to cylce between publishing events while running
   long previousMillis = 0;
   const long PUB_INTERVAL_IDLE = 30000; //publish state info and temp info for logging while not running
   int index = 0; //counter for cycling through publishing array
