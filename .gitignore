@@ -1,3 +1,4 @@
 creds*
 *.pyc
 *.db
+build-atmega328*

@@ -85,14 +85,16 @@ def on_message(client, userdata, msg):
     if 'state' in msg.topic:
         try:
             state = msg.payload.decode(encoding='UTF8').replace('\r', '')
-            #print("replaced stuff")
+            print("replaced stuff")
         except:
             state = payload
-            #print("didn't replace stuff")
+            print("didn't replace stuff")
         #print ('state is blah '+state)
         # data.write_data('state', 'status', str(msg.payload))
         post_data({'tags': {'state':boiler_data['State'], 'type':'state', 'sensorID':'state', 'site': 'boiler'}, 'value':state, 'measurement': 'things'})
-        publish.single('boiler/state/readable', boiler_state[int(payload)], hostname=creds.broker, retain=True)
+        print("Publishing state in readable format")
+        print(int(payload))
+        publish.single('boiler/state/readable/', boiler_state[int(payload)], hostname=creds.broker, retain=True)
     if 'pid' in msg.topic:
         pid_type = msg.topic.split('/')[-1:][0]
         # data.write_data(pid_type, 'pid', int(msg.payload))
