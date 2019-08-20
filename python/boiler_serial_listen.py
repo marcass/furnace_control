@@ -91,7 +91,7 @@ def on_message(client, userdata, msg):
             print("didn't replace stuff")
         #print ('state is blah '+state)
         # data.write_data('state', 'status', str(msg.payload))
-        post_data({'tags': {'state':boiler_data['State'], 'type':'state', 'sensorID':'state', 'site': 'boiler'}, 'value':state, 'measurement': 'things'})
+        post_data({'tags': {'state':boiler_data['State'], 'type':'boiler_state', 'sensorID':'state', 'site': 'boiler'}, 'value':int(state), 'measurement': 'things'})
         print("Publishing state in readable format")
         print(int(payload))
         publish.single('boiler/state/readable/', boiler_state[int(payload)], hostname=creds.broker, retain=True)
