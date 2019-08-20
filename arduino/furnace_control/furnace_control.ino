@@ -1042,7 +1042,8 @@ void loop() {
           index++;
         }
         if (index == 1) {
-          publish(STATE_TOPIC, STATES_STRING[state]);
+          // publish(STATE_TOPIC, STATES_STRING[state]);
+          publish(STATE_TOPIC, state);
 //          if (state == STATE_ERROR) {
 //            publish(ERROR_TOPIC, reason);
 //          }
