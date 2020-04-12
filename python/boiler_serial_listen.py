@@ -93,41 +93,6 @@ def on_message(client, userdata, msg):
         # data.write_data('burn', 'flame', int(msg.payload))
         post_data({'tags': {'state':boiler_data['State'], 'type':'light', 'sensorID':'flame', 'site': 'boiler'}, 'value':int(msg.payload), 'measurement': 'things'})
 
-def readlineCR(port):
-    global boiler_data
-    rv = ""
-    while True:
-        ch = port.read()
-#        print(ch)
-#        rv += ch
-#       for python3 need to cast to str
-        rv += str(ch, 'UTF-8')
-#        print(rv)
-        if ch==b'\r':# or ch=='':
-            print(rv)
-            if 'MQTT' in rv:
-                received = rv[6:]
-                received_splited = received.split('/')
-                topic = '/'.join(received_splited[:-1])
-                payload = received_splited[-1]
-                # print (topic, payload)
-                # publish.single(topic, payload, auth=auth, hostname=creds.broker, retain=True)
-                publish.single(topic, payload, hostname=creds.broker, retain=True)
-                # if (topic == 'boiler/messages'):
-                #     # print 'Got an error message'
-                #     alerts.send_alert('Gobgoyle says: '+payload)
-                try:
-                    if topic in boiler_topics:
-                        if topic == 'boiler/state':
-                            boiler_data[boiler_topics[topic]] = payload.replace('\r', '')
-                        else:
-                            boiler_data[boiler_topics[topic]] = payload
-                except:
-                    # we don't care about this topic
-                    # print 'oops'
-                    pass
-            return rv
-
 def duckpunch():
     print ('Starting mqtt client')
     global mqtt_running
