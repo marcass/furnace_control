@@ -1,11 +1,9 @@
-import serial
 import time
 # import boiler_alerts as alerts
 import creds
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
 import requests
-import creds
 import json
 from threading import Thread
 
@@ -17,12 +15,6 @@ jwt = ''
 # dict of topics for messaging
 boiler_topics = {"boiler/state":"State", "boiler/temp/water":"Water temp", "boiler/temp/auger": "Auger temp", "boiler/temp/setpoint": "Setpoint"}
 boiler_data = {'State': '', 'Water temp': 0, 'Auger temp': 0, 'Setpoint': 0}
-# const int STATE_IDLE = 0;
-# const int STATE_START_UP = 1;
-# const int STATE_HEATING = 2;
-# const int STATE_COOL_DOWN = 3;
-# const int STATE_ERROR = 4;
-# const int STATE_OFF = 5;
 boiler_state = {0: 'Idle', 1: 'Starting', 2: 'Heating', 3: 'Cooling', 4: 'Error', 5: 'Off'}
 
 def getToken():
@@ -50,7 +42,7 @@ def post_data(data):
         print ('Oops, not authenticated')
         try:
             getToken()
-            requests.post(DATA_URL, json = data, headers = headersi)
+            requests.post(DATA_URL, json = data, headers = headers)
             ret = {'Status': 'Error', 'Message': 'Got token'}
             print ('Post NOT 200 response is: ' +str(r))
         except:
@@ -71,12 +63,10 @@ def on_message(client, userdata, msg):
     print(msg.topic+' '+payload)
     if 'switch' in msg.topic:
         if ('Setpoint' in payload) or ('State'  in payload):
-            port.write('\r\n'+payload+'\r')
-            print ('Sent ' + payload + ' to serial port.')
-        allowed_passthrough_msg = ['Turn Off Boiler', 'Turn On Boiler', 'Increase SetPoint', 'Decrease SetPoint']
-        if payload in allowed_passthrough_msg:
-            port.write('\r\n'+payload+'\r')
-            print ('Sent ' + payload + ' to serial port.')
+            allowed_passthrough_msg = ['Turn Off Boiler', 'Turn On Boiler', 'Increase SetPoint', 'Decrease SetPoint']
+            if payload in allowed_passthrough_msg:
+                publish.single('boiler/instructions', payload, hostname=creds.broker)
+                print ('Sent ' + payload + ' MQTT broker.')
     if 'temp' in msg.topic:
         temp_type = msg.topic.split('/')[-1:][0]
         print ('temp type is: '+str(temp_type)+', value is: '+payload)
@@ -102,16 +92,6 @@ def on_message(client, userdata, msg):
     if 'flame' in msg.topic:
         # data.write_data('burn', 'flame', int(msg.payload))
         post_data({'tags': {'state':boiler_data['State'], 'type':'light', 'sensorID':'flame', 'site': 'boiler'}, 'value':int(msg.payload), 'measurement': 'things'})
-
-
-def write_setpoint(setpoint):
-    port.write('\r\n'+'Setpoint'+'['+setpoint+']'+'\r')
-    print ('Sent Setpoint[' + setpoint + '] to serial port.')
-
-def write_state(state):
-    # "Idle","Starting","Heating","Cool down","Error","Off"
-    port.write('\r\n'+'State'+'['+state+']'+'\r')
-    print ('Sent State[' + state + '] to serial port.')
 
 def readlineCR(port):
     global boiler_data
@@ -148,22 +128,6 @@ def readlineCR(port):
                     pass
             return rv
 
-# Alerts setup:
-# def chat_messg(msg):
-#     if '/turn off' in msg['text']:
-#         print ('turning off')
-#         port.write('\r\n'+'Turn Off Boiler'+'\r')
-#         return
-#     if '/turn on' in msg['text']:
-#         print ('turning on')
-#         port.write('\r\n'+'Turn On Boiler'+'\r')
-#         return
-#     else:
-#         print ('doing other stuff')
-#         alerts.on_chat_message(msg, boiler_data)
-#         return
-
-
 def duckpunch():
     print ('Starting mqtt client')
     global mqtt_running
@@ -186,8 +150,6 @@ def start_listeners():
         mqtt_running = False
 
 auth = creds.mosq_auth
-port = serial.Serial("/dev/arduino", baudrate=9600, timeout=3.0)
-#port = serial.Serial("/dev/ttyUSB0", baudrate=9600, timeout=3.0)
 
 if __name__ == "__main__":
     global client
@@ -204,6 +166,3 @@ if __name__ == "__main__":
             except:
                 client.loop_stop()
                 mqtt_running = False
-        #for debugging enable printing of serial port data
-        rcv = readlineCR(port)
-        #print rcv

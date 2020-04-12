@@ -2,3 +2,4 @@ creds*
 *.pyc
 *.db
 build-atmega328*
+secrets.h

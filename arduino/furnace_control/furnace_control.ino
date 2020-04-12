@@ -1,8 +1,3 @@
-/* ToDo
- *  - check lcd working
- *  - put ultrasound probe on analoge pins (as digital?)
- */
-
 /*******************************
  BOILER CONTROL
  *******************************/
@@ -11,16 +6,8 @@
 //#define no_PID //use if not pid controlling
 #define mqtt
 //#define ac_counter
-//#define lcd //interferes with interrupts?
 
 //Libraries
-//#include <Wire.h>
-//#ifdef lcd
-//  //https://bitbucket.org/fmalpartida/new-liquidcrystal/wiki/Home
-//  #include <LiquidCrystal_I2C.h>
-//  LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I2C address
-////need to set contrast and backlight and check pin assignments
-//#endif
 //PID library
 #include <math.h>
 #include <PID_v1.h>
@@ -87,7 +74,7 @@ const int DZ_SUPPLY = 6; //Need a pin to supply 5v that is passed to DZ_PIN when
 
 /********************************************************************************************
  * Variables
- */
+ *******************************************************************************************/
 // general timers (specific ones in subsection)
 unsigned long debounce_start = 0; //button press debounce
 unsigned long element_start = 0;
