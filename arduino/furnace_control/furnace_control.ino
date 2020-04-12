@@ -180,15 +180,13 @@ unsigned long prevMillis;
 
   //publish functions overloaded for int/string as payload
   void publish(String top,int payload) { //publish data
-    Serial.print("MQTT:");
     Serial.print(top);
-    Serial.print("/");
+    Serial.print("^");
     Serial.println(payload);
   }
   void publish(String top,String payload) { //publish data
-    Serial.print("MQTT:");
     Serial.print(top);
-    Serial.print("/");
+    Serial.print("^");
     Serial.println(payload);
   }
 #endif

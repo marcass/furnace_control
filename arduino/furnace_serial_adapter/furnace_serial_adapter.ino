@@ -2,6 +2,9 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include "secrets.h"
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 
 const char willTopic[] = "furnace/will";
 const char willMessage[] = "offline";
@@ -9,13 +12,25 @@ const char mqttServer[] = BROKER;
 const int mqttPort = 1883;
 const char DOOR_PUB[] = D_PUB;
 const char DOOR_SUB[] = D_SUB;
+int water_temp;
+int auger_temp;
+int state;
+const char * state_array[] = {"Idle", "Starting", "Heating", "Cool Down", "Error", "Off"};
 
 // SETUP SERIAL COMM for inputs *********************************************************
 //HardwareSerial Serial2(2);
 String inputString = "";         // a string to hold incoming data
 boolean stringComplete = false;  // whether the string is complete
-#define RX2 16
-#define TX2 17
+#define RX2 15
+#define TX2 13
+
+//*********************** Setup dislplay ************
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+#define OLED_RESET -1  // GPIO0
+
+// Declaration for an SSD1306 display connected to I2C (SDA, SCL pins) adn no reset pin
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 
 //void serialEvent() {
@@ -99,6 +114,22 @@ void callback(char* topic, byte *payload, unsigned int length) {
 void setup() {
   // initialize serial for debugging
   Serial.begin(115200);
+  //Initialise display
+  // Start I2C Communication SDA = 5 and SCL = 4 on Wemos Lolin32 ESP32 with built-in SSD1306 OLED
+  Wire.begin(5, 4);
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C, false, false)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    for(;;);
+  }
+  delay(2000); // Pause for 2 seconds
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(0, 0);
+  // Display static text
+  display.println("Setting up boiler");
+  display.display(); 
+  delay(2000);
   connect_WIFI();
   Serial2.begin(115200, SERIAL_8N1, RX2, TX2);
 //  Serial2.begin(115200);
@@ -121,9 +152,6 @@ void send_stuff(String stuff){
   char * payload_delimiter = "\n";
   topic = strtok(char_array, topic_delimiter);
   payload = strtok(NULL, payload_delimiter);
-  
-  //boolean publish(const String &topic, const String &payload, bool retained, int qos);
-//  if (client.publish(DOOR_PUB, char_array, false)){
   if (client.publish(topic, payload, false)){
     #ifdef debug
       Serial.println("Send successful");
@@ -133,6 +161,63 @@ void send_stuff(String stuff){
       Serial.println("Send failed");
     #endif
   }
+  char * res;
+  char * res1;
+  char * s1 = "state";
+  char * s2 = "temp";
+  res = strstr(topic, s1);
+  res1 = strstr(topic, s2);
+  if (res) {
+    alter_display(topic, payload, "state");
+  }
+  if (res1) {
+    char * temp_type;
+    char * s3 = "auger";
+    temp_type = strstr(topic, s3);
+    if (temp_type) {
+      alter_display(topic, payload, "auger");
+    }else{
+     alter_display(topic, payload, "water_temp"); 
+    }
+  }
+}
+
+void alter_display(char* topic, char* payload, String value) {
+  if (value == "auger") {
+    int temp = String(payload).toInt();
+    if (temp != auger_temp) {
+      update_display();
+      auger_temp = temp;
+    }
+  }else if (value == "water_temp") {
+      int temp = String(payload).toInt();
+      if (temp != water_temp) {
+        update_display();
+        water_temp = temp;
+      }
+  }else if (value == "state") {
+      int this_state = String(payload).toInt();
+      if ( this_state != state) {
+        update_display();
+        state = this_state;
+      }
+  }
+}
+
+void update_display() {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(0, 0);
+  display.print("State is ");
+  display.println(state_array[state]);
+  display.setCursor(0, 20);
+  display.print("Water temp = ");
+  display.println(water_temp);
+  display.setCursor(0, 40);
+  display.print("Auger temp = ");
+  display.println(auger_temp);
+  display.display();
 }
 
 void loop() {
