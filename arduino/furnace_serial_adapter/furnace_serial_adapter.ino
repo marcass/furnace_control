@@ -22,8 +22,7 @@ const char willTopic[] = "furnace/will";
 const char willMessage[] = "offline";
 const char mqttServer[] = BROKER;
 const int mqttPort = 1883;
-const char DOOR_PUB[] = D_PUB;
-const char DOOR_SUB[] = D_SUB;
+const char TOP_SUB[] = SUB;
 int water_temp;
 int auger_temp;
 int state;
@@ -101,7 +100,7 @@ void reconnect_MQTT() {
       //Once connected, publish an empty message to offline topic...
       client.publish(willTopic, "online", true);
       // ... and resubscribe
-      client.subscribe(D_SUB);
+      client.subscribe(TOP_SUB);
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
