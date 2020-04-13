@@ -119,7 +119,8 @@ void callback(char* topic, byte *payload, unsigned int length) {
   Serial.write(payload, length);
   Serial.println();
   payload[length] = '\0';
-//  String s = String((char*)payload);
+  String s = String((char*)payload);
+  Serial2.println(s);
 }
 
 void setup() {
