@@ -1,3 +1,15 @@
+/* Wiring:
+- Using esp32 wroom with oled screen
+esp32     Logic level converter     arduion nano
+------|--------------------------|---------------
+15    | Low side to high side    | TX1
+13    | Low side to high side    | RX0
+3.3V  | LV                       |
+GND   | GND                      | GND
+      | HV                       | 5V
+
+*/
+
 #include <SPI.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
@@ -104,7 +116,7 @@ void callback(char* topic, byte *payload, unsigned int length) {
   Serial.println("-------new message from broker-----");
   Serial.print("topic:");
   Serial.println(topic);
-  Serial.print("data:");  
+  Serial.print("data:");
   Serial.write(payload, length);
   Serial.println();
   payload[length] = '\0';
@@ -128,7 +140,7 @@ void setup() {
   display.setCursor(0, 0);
   // Display static text
   display.println("Setting up boiler");
-  display.display(); 
+  display.display();
   delay(2000);
   connect_WIFI();
   Serial2.begin(115200, SERIAL_8N1, RX2, TX2);
@@ -138,12 +150,12 @@ void setup() {
   reconnect_MQTT();
 }
 
-void send_stuff(String stuff){  
+void send_stuff(String stuff){
   //  have to convert String to char array for mqtt lib
   int str_len = stuff.length() + 1;
-  // Prepare the character array (the buffer) 
+  // Prepare the character array (the buffer)
   char char_array[str_len];
-  // Copy it over 
+  // Copy it over
   stuff.toCharArray(char_array, str_len);
   //split data into topic and payload
   char * topic;
@@ -163,10 +175,13 @@ void send_stuff(String stuff){
   }
   char * res;
   char * res1;
+  char * res2;
   char * s1 = "state";
   char * s2 = "temp";
+  char * s3 = "water";
   res = strstr(topic, s1);
   res1 = strstr(topic, s2);
+  res2 = strstr(topic, s3);
   if (res) {
     alter_display(topic, payload, "state");
   }
@@ -176,8 +191,8 @@ void send_stuff(String stuff){
     temp_type = strstr(topic, s3);
     if (temp_type) {
       alter_display(topic, payload, "auger");
-    }else{
-     alter_display(topic, payload, "water_temp"); 
+    }else if (res2) {
+     alter_display(topic, payload, "water_temp");
     }
   }
 }
@@ -186,20 +201,20 @@ void alter_display(char* topic, char* payload, String value) {
   if (value == "auger") {
     int temp = String(payload).toInt();
     if (temp != auger_temp) {
-      update_display();
       auger_temp = temp;
+      update_display();
     }
   }else if (value == "water_temp") {
       int temp = String(payload).toInt();
       if (temp != water_temp) {
-        update_display();
         water_temp = temp;
+        update_display();
       }
   }else if (value == "state") {
       int this_state = String(payload).toInt();
       if ( this_state != state) {
-        update_display();
         state = this_state;
+        update_display();
       }
   }
 }

@@ -280,14 +280,13 @@ void setup() {
   // set up zero crossing interrupt
   attachInterrupt(0,zeroCrossingInterrupt, RISING); //IRQ0 is pin 2. Call zeroCrossingInterrupt
   // initialize serial communication:
-  Serial.begin(9600);//slower speed for long cable
+  Serial.begin(115200);//slower speed for long cable
   inputString.reserve(200); // reserve mem for received message on serial port
   int state = 0;
   #ifdef mqtt
     //initialise state as idle on statup
-    Serial.print("MQTT:");
     Serial.print(STATE_TOPIC);
-    Serial.print("/");
+    Serial.print("^");
     Serial.println(STATES_STRING[state]);
   #endif
 }
