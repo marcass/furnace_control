@@ -62,11 +62,10 @@ def on_message(client, userdata, msg):
     payload = str(msg.payload, 'UTF-8')
     print(msg.topic+' '+payload)
     if 'switch' in msg.topic:
-        if ('Setpoint' in payload) or ('State'  in payload):
-            allowed_passthrough_msg = ['Turn Off Boiler', 'Turn On Boiler', 'Increase SetPoint', 'Decrease SetPoint']
-            if payload in allowed_passthrough_msg:
-                publish.single('boiler/instructions', payload, hostname=creds.broker)
-                print ('Sent ' + payload + ' MQTT broker.')
+        allowed_passthrough_msg = ['Turn Off Boiler', 'Turn On Boiler', 'Increase SetPoint', 'Decrease SetPoint']
+        if payload in allowed_passthrough_msg:
+            publish.single('boiler/instructions', payload, hostname=creds.broker)
+            print ('Sent ' + payload + ' MQTT broker.')
     if 'temp' in msg.topic:
         temp_type = msg.topic.split('/')[-1:][0]
         print ('temp type is: '+str(temp_type)+', value is: '+payload)
