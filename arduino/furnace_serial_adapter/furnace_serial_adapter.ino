@@ -18,7 +18,7 @@ GND   | GND                      | GND
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-const char willTopic[] = "furnace/will";
+const char willTopic[] = "boiler/will";
 const char willMessage[] = "offline";
 const char mqttServer[] = BROKER;
 const int mqttPort = 1883;
@@ -164,7 +164,7 @@ void send_stuff(String stuff){
   char * payload_delimiter = "\n";
   topic = strtok(char_array, topic_delimiter);
   payload = strtok(NULL, payload_delimiter);
-  if (client.publish(topic, payload, false)){
+  if (client.publish(topic, payload, true)){
     #ifdef debug
       Serial.println("Send successful");
     #endif
