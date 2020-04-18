@@ -511,7 +511,7 @@ void cool_to_stop(int target_state) {
         //this_state = -1;//put nonsense varialbe in here to it is changed by code
         state = target_state;
         #ifdef mqtt
-          publish(STATE_TOPIC, STATES_STRING[state]);
+          publish(STATE_TOPIC, state);
         #endif
         fanend_start = 0;
       }
