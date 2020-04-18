@@ -176,7 +176,7 @@ unsigned long prevMillis;
   String PID_PAUSE = "boiler/pid/pause";
   String START_COUNT_TOP = "boiler/start_count";
   String TEMP_SET_POINT_TOP = "boiler/temp/setpoint";
-  const String STATES_STRING[] = {"Idle","Starting","Heating","Cool down","Error","Off","Wind down"};
+//  const String STATES_STRING[] = {"Idle","Starting","Heating","Cool down","Error","Off","Wind down"};
 
   //publish functions overloaded for int/string as payload
   void publish(String top,int payload) { //publish data
@@ -287,7 +287,8 @@ void setup() {
     //initialise state as idle on statup
     Serial.print(STATE_TOPIC);
     Serial.print("^");
-    Serial.println(STATES_STRING[state]);
+//    Serial.println(STATES_STRING[state]);
+    Serial.println(state);
   #endif
 }
 
@@ -595,7 +596,7 @@ void safety() {
     reason = "Too hot";
     #ifdef mqtt
       //
-      publish(STATE_TOPIC, STATES_STRING[state]);
+      publish(STATE_TOPIC, state);
     #endif
   }
   //if auger too hot go into error
@@ -607,7 +608,7 @@ void safety() {
     #ifdef mqtt
       //
       publish(ERROR_TOPIC, message);
-      publish(STATE_TOPIC, STATES_STRING[state]);
+      publish(STATE_TOPIC, state);
       //reason = "";
     #endif
   }
