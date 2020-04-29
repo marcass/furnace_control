@@ -620,12 +620,6 @@ void proc_idle() {
   //1-wire relay gets closed by DZ3
   if (digitalRead(DZ_PIN) == LOW) {
     state = STATE_START_UP;
-//    reason = "";
-//    #ifdef mqtt
-//      //
-//      publish(STATE_TOPIC, STATES_STRING[state]);
-//      publish(ERROR_TOPIC, reason); //clear error register
-//    #endif
   }
 }
 
@@ -637,6 +631,7 @@ void proc_start_up() {
     #ifdef mqtt
       //
       publish(ERROR_TOPIC, reason);
+      publish(STATE_TOPIC, state);
       //reason = "";
       dump = false;
     #endif
@@ -1016,11 +1011,6 @@ void loop() {
         }else {
           index = 0;
         }
-        // if (index==3){
-        //  publish(mosqTop[index], STATES_STRING[state]);
-        // }else{
-        //   publish(mosqTop[index], mosqPayload[index]);
-        // }
         publish(mosqTop[index], mosqPayload[index]);
       }
     }else { //publish temp, pause for PUB_INTERVAL_IDLE, publish state, pause for PUB_INTERVAL_IDLE, publish temp etc
@@ -1036,9 +1026,6 @@ void loop() {
         if (index == 1) {
           // publish(STATE_TOPIC, STATES_STRING[state]);
           publish(STATE_TOPIC, state);
-//          if (state == STATE_ERROR) {
-//            publish(ERROR_TOPIC, reason);
-//          }
           index = 0;
         }
       }
