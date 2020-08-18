@@ -108,11 +108,12 @@ def readlineCR(port):
     rv = ""
     while True:
         ch = port.read()
-#        print(ch)
+        print(ch)
 #        rv += ch
 #       for python3 need to cast to str
-        rv += str(ch, 'UTF-8')
-#        print(rv)
+#        rv += str(ch, 'UTF-8')
+        rv += str(ch)
+        print(rv)
         if ch==b'\r':# or ch=='':
             print(rv)
             if 'MQTT' in rv:
