@@ -105,6 +105,7 @@ def write_state(state):
 
 def readlineCR(port):
     global boiler_data
+    global client
     rv = ""
     while True:
         ch = port.read()
@@ -121,22 +122,24 @@ def readlineCR(port):
                 received = rv[:-1]
                 #print("rec = "+str(received))
                 payload = received.split('^')
-                topic = payload[0]
+                topic = payload[0][1:]
                 value = payload[1]
-                print ("topic, value")
-                print (topic, value)
-                publish.single(topic, value, retain=True)
+                #print ("topic, value")
+                #print (topic, type(topic), len(topic))
+                #print (value, type(value), len(value))
+                publish.single(topic, value, retain=True, hostname=creds.broker)
+                #client.publish(topic, value, retain=True, hostname=creds.broker)
                 if (topic == 'boiler/messages'):
                     # print 'Got an error message'
                     alerts.send_alert('Gobgoyle says: '+value)
                 try:
                     if topic in boiler_topics:
                         #if topic == 'boiler/state':
-                        print('need to populate dict')
+                        #print('need to populate dict')
                         #    boiler_data[boiler_topics[topic]] = payload.replace('\r', '')
                         #else:
                         boiler_data[boiler_topics[topic]] = value
-                        print(boiler_data)
+                        #print(boiler_data)
                 except:
                     # we don't care about this topic
                     print ('oops')
