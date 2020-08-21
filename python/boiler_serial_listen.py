@@ -108,33 +108,38 @@ def readlineCR(port):
     rv = ""
     while True:
         ch = port.read()
-        print(ch)
+#        print(ch)
 #        rv += ch
 #       for python3 need to cast to str
-#        rv += str(ch, 'UTF-8')
-        rv += str(ch)
-        print(rv)
+        rv += str(ch, 'UTF-8')
+#        rv += str(ch)
+#        print(rv)
         if ch==b'\r':# or ch=='':
-            print(rv)
-            if 'MQTT' in rv:
-                received = rv[6:]
-                received_splited = received.split('/')
-                topic = '/'.join(received_splited[:-1])
-                payload = received_splited[-1]
-                print (topic, payload)
-                publish.single(topic, payload, auth=auth, hostname=creds.broker, retain=True)
+            #print(rv)
+            if 'boiler' in rv:
+                #received = rv
+                received = rv[:-1]
+                #print("rec = "+str(received))
+                payload = received.split('^')
+                topic = payload[0]
+                value = payload[1]
+                print ("topic, value")
+                print (topic, value)
+                publish.single(topic, value, retain=True)
                 if (topic == 'boiler/messages'):
                     # print 'Got an error message'
-                    alerts.send_alert('Gobgoyle says: '+payload)
+                    alerts.send_alert('Gobgoyle says: '+value)
                 try:
                     if topic in boiler_topics:
-                        if topic == 'boiler/state':
-                            boiler_data[boiler_topics[topic]] = payload.replace('\r', '')
-                        else:
-                            boiler_data[boiler_topics[topic]] = payload
+                        #if topic == 'boiler/state':
+                        print('need to populate dict')
+                        #    boiler_data[boiler_topics[topic]] = payload.replace('\r', '')
+                        #else:
+                        boiler_data[boiler_topics[topic]] = value
+                        print(boiler_data)
                 except:
                     # we don't care about this topic
-                    # print 'oops'
+                    print ('oops')
                     pass
             return rv
 
@@ -176,7 +181,7 @@ def start_listeners():
         mqtt_running = False
 
 auth = creds.mosq_auth
-port = serial.Serial("/dev/arduino", baudrate=9600, timeout=3.0)
+port = serial.Serial("/dev/arduino", baudrate=115200, timeout=3.0)
 #port = serial.Serial("/dev/ttyUSB0", baudrate=9600, timeout=3.0)
 
 if __name__ == "__main__":
