@@ -17,6 +17,7 @@ jwt = ''
 # dict of topics for messaging
 boiler_topics = {"boiler/state":"State", "boiler/temp/water":"Water temp", "boiler/temp/auger": "Auger temp", "boiler/temp/setpoint": "Setpoint"}
 boiler_data = {'State': '', 'Water temp': 0, 'Auger temp': 0, 'Setpoint': 0}
+state_arr = ['Idle', 'Starting', 'Heating', 'Cooling', 'Error', 'Off']
 
 def getToken():
     global jwt
@@ -60,38 +61,47 @@ def on_connect(client, userdata, flags, rc):
 
 # The callback for when a PUBLISH message is received from the server.
 def on_message(client, userdata, msg):
-    payload = str(msg.payload, 'UTF-8')
-    print(msg.topic+' '+payload)
     if 'switch' in msg.topic:
-        if ('Setpoint' in payload) or ('State'  in payload):
-            port.write('\r\n'+payload+'\r')
-            print ('Sent ' + payload + ' to serial port.')
-        allowed_passthrough_msg = ['Turn Off Boiler', 'Turn On Boiler', 'Increase SetPoint', 'Decrease SetPoint']
-        if payload in allowed_passthrough_msg:
-            port.write('\r\n'+payload+'\r')
-            print ('Sent ' + payload + ' to serial port.')
+    if ('Setpoint' in payload) or ('State'  in payload):
+        port.write('\r\n'+payload+'\r')
+        print ('Sent ' + payload + ' to serial port.')
+    allowed_passthrough_msg = ['Turn Off Boiler', 'Turn On Boiler', 'Increase SetPoint', 'Decrease SetPoint']
+    if payload in allowed_passthrough_msg:
+        port.write('\r\n'+payload+'\r')
+        print ('Sent ' + payload + ' to serial port.')
+
+def parse_packet(payload, sensor):
+    payload = str(msg.payload, 'UTF-8')
+    print(str(sensor)+' '+payload)
     if 'temp' in msg.topic:
         temp_type = msg.topic.split('/')[-1:][0]
         print ('temp type is: '+str(temp_type)+', value is: '+payload)
         #data.write_data(temp_type, 'temperature', int(msg.payload))
-        post_data({'tags': {'state':boiler_data['State'], 'type':'temp', 'sensorID':temp_type, 'site': 'boiler'}, 'value':float(msg.payload), 'measurement': 'things'})
+        packet = {'tags': {'state':boiler_data['State'], 'type':'temp', 'sensorID':temp_type, 'site': 'boiler'}, 'value':float(msg.payload), 'measurement': 'things'}
     if 'state' in msg.topic:
         try:
-            state = msg.payload.decode(encoding='UTF8').replace('\r', '')
+            state = int(msg.payload.decode(encoding='UTF8').replace('\r', ''))
             #print("replaced stuff")
         except:
-            state = payload
+            state = int(payload)
             #print("didn't replace stuff")
         #print ('state is blah '+state)
         # data.write_data('state', 'status', str(msg.payload))
-        post_data({'tags': {'state':boiler_data['State'], 'type':'state', 'sensorID':'state', 'site': 'boiler'}, 'value':state, 'measurement': 'things'})
+        # Publish string value to state
+        try:
+            readabe_state = state_arr[state]
+            publish.single('boiler/state/readable/', readable_state, retain=True, hostname=creds.broker)
+        except:
+            print('problem parsing readable state')
+        packet = {'tags': {'state':boiler_data['State'], 'type':'state', 'sensorID':'state', 'site': 'boiler'}, 'value':state, 'measurement': 'things'}
     if 'pid' in msg.topic:
         pid_type = msg.topic.split('/')[-1:][0]
         # data.write_data(pid_type, 'pid', int(msg.payload))
-        post_data({'tags': {'state':boiler_data['State'], 'type':'pid', 'sensorID':pid_type, 'site': 'boiler'}, 'value':int(msg.payload), 'measurement': 'things'})
+        packet = {'tags': {'state':boiler_data['State'], 'type':'pid', 'sensorID':pid_type, 'site': 'boiler'}, 'value':int(msg.payload), 'measurement': 'things'}
     if 'flame' in msg.topic:
         # data.write_data('burn', 'flame', int(msg.payload))
-        post_data({'tags': {'state':boiler_data['State'], 'type':'light', 'sensorID':'flame', 'site': 'boiler'}, 'value':int(msg.payload), 'measurement': 'things'})
+        packet = {'tags': {'state':boiler_data['State'], 'type':'light', 'sensorID':'flame', 'site': 'boiler'}, 'value':int(msg.payload), 'measurement': 'things'}
+    return packet
 
 
 def write_setpoint(setpoint):
@@ -117,34 +127,25 @@ def readlineCR(port):
 #        print(rv)
         if ch==b'\r':# or ch=='':
             #print(rv)
-            if 'boiler' in rv:
-                #received = rv
-                received = rv[:-1]
-                #print("rec = "+str(received))
-                payload = received.split('^')
-                topic = payload[0][1:]
-                value = payload[1]
-                #print ("topic, value")
-                #print (topic, type(topic), len(topic))
-                #print (value, type(value), len(value))
-                publish.single(topic, value, retain=True, hostname=creds.broker)
-                #client.publish(topic, value, retain=True, hostname=creds.broker)
-                if (topic == 'boiler/messages'):
-                    # print 'Got an error message'
-                    alerts.send_alert('Gobgoyle says: '+value)
-                try:
-                    if topic in boiler_topics:
-                        #if topic == 'boiler/state':
-                        #print('need to populate dict')
-                        #    boiler_data[boiler_topics[topic]] = payload.replace('\r', '')
-                        #else:
-                        boiler_data[boiler_topics[topic]] = value
-                        #print(boiler_data)
-                except:
-                    # we don't care about this topic
-                    print ('oops')
-                    pass
-            return rv
+            try:
+                if 'boiler' in rv:
+                    #received = rv
+                    received = rv[:-1]
+                    #print("rec = "+str(received))
+                    payload = received.split('^')
+                    sensor = payload[0][1:]
+                    #sensor_arr = sensor.split('/')
+                    value = payload[1]
+                    try:
+                        packet = parse_data(payload, sensor)
+                        publish.single('hcc/boiler/', packet, retain=True, hostname=creds.broker)
+                    except:
+                        print('Could not parse packet, skipping)
+                        pass
+            except:
+                print('Serial garbage. Discarding')
+                pass
+        return rv
 
 # Alerts setup:
 # def chat_messg(msg):
