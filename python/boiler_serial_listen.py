@@ -118,7 +118,11 @@ def readlineCR(port):
 #        print(ch)
 #        rv += ch
 #       for python3 need to cast to str
-        rv += str(ch, 'UTF-8')
+        try:
+            rv += str(ch, 'UTF-8')
+        except:
+            print('Serial character decoding error')
+            pass
 #        rv += str(ch)
 #        print(rv)
         if ch==b'\r':# or ch=='':
