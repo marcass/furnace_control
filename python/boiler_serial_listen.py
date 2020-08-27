@@ -88,8 +88,12 @@ def parse_packet(payload, sensor):
             packet = {'tags': {'state':boiler_data['State'], 'type':'state', 'sensorID':'state', 'site': 'boiler'}, 'value':state, 'measurement': 'things'}
         if 'pid' in sensor:
             pid_type = sensor.split('/')[-1:][0]
-            # data.write_data(pid_type, 'pid', int(payload))
-            packet = {'tags': {'state':boiler_data['State'], 'type':'pid', 'sensorID':pid_type, 'site': 'boiler'}, 'value':int(payload), 'measurement': 'things'}
+            pids = ['fan', 'pause', 'feed']
+            if pid_type in pids:
+                # data.write_data(pid_type, 'pid', int(payload))
+                packet = {'tags': {'state':boiler_data['State'], 'type':'pid', 'sensorID':pid_type, 'site': 'boiler'}, 'value':int(payload), 'measurement': 'things'}
+            else:
+                print('Mangled PID typ')
         if 'flame' in sensor:
             # data.write_data('burn', 'flame', int(payload))
             packet = {'tags': {'state':boiler_data['State'], 'type':'light', 'sensorID':'flame', 'site': 'boiler'}, 'value':int(payload), 'measurement': 'things'}
