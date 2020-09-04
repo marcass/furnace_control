@@ -61,14 +61,23 @@ def on_connect(client, userdata, flags, rc):
 
 # The callback for when a PUBLISH message is received from the server.
 def on_message(client, userdata, msg):
+    message = str(msg.payload, 'UTF-8')
     if 'switch' in msg.topic:
-        if ('Setpoint' in payload) or ('State'  in payload):
-            port.write('\r\n'+payload+'\r')
-            print ('Sent ' + payload + ' to serial port.')
+        #print ("port write request received")
+        #print(message)
+        if ('Setpoint' in message) or ('State'  in message):
+            port.write('\r\n'+message+'\r')
+            print ('Sent ' + message + ' to serial port.')
     allowed_passthrough_msg = ['Turn Off Boiler', 'Turn On Boiler', 'Increase SetPoint', 'Decrease SetPoint']
-    if payload in allowed_passthrough_msg:
-        port.write('\r\n'+payload+'\r')
-        print ('Sent ' + payload + ' to serial port.')
+    if message in allowed_passthrough_msg:
+        #print ("Message allowed through")
+        to_send = ('\r\n'+message+'\r\n').encode()
+        port.write(to_send)
+        #port.write(('\r\n'+message+'\n\r').encode())
+        #port.write('\r\n')
+        #port.write(message)
+        #port.write('\r')
+        #print ('Sent ' + message + ' to serial port.')
 
 def parse_packet(payload, sensor):
     #payload = str(payload, 'UTF-8')
